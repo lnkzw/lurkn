@@ -31,7 +31,7 @@ decision does not have to be re-derived.
 - [x] Issue templates: bug (asks for OS, version and the log from Settings → Advanced), feature request.
 - [x] `CHANGELOG.md`, Keep a Changelog style; the release workflow takes the notes from it.
 - [x] Remove the original specification (`project.md`): it predates most decisions (it still said IRC). `docs/architecture.md` is the one design document, and nothing refers to the spec any more.
-- [ ] Twitch Developer Console: app name and category final. The client id is public by design (device-code flow, no secret) and may sit in the source.
+- [x] Twitch Developer Console: app name `lurkn`, category Other. The client id is public by design (device-code flow, no secret) and may sit in the source.
 - [x] One initial commit, pushed to `github.com/lnkzw/lurkn`; the private history stays local.
 
 ### License
