@@ -235,6 +235,11 @@ export const commands = {
 	 *  be judged without OBS.
 	 */
 	overlayPreview: () => typedError<null, string>(__TAURI_INVOKE("overlay_preview")),
+	updateStatus: () => typedError<UpdateStatus, null>(__TAURI_INVOKE("update_status")),
+	/**  Check now, whatever the setting says: the reader asked. */
+	updateCheck: () => typedError<UpdateStatus, null>(__TAURI_INVOKE("update_check")),
+	/**  Install what the last check found. Lurkn restarts when it is done. */
+	updateInstall: () => typedError<null, string>(__TAURI_INVOKE("update_install")),
 };
 
 /** Events */
@@ -254,6 +259,7 @@ export const events = {
 	showSettings: makeEvent<ShowSettings>("show-settings"),
 	showWhispers: makeEvent<ShowWhispers>("show-whispers"),
 	themeChanged: makeEvent<ThemeChanged>("theme-changed"),
+	updateChanged: makeEvent<UpdateChanged>("update-changed"),
 	whisperReceived: makeEvent<WhisperReceived_Deserialize>("whisper-received"),
 };
 
@@ -1215,6 +1221,7 @@ export type Settings_Deserialize = {
 	commands?: CustomCommand[],
 	browser?: BrowserSettings,
 	overlay?: OverlaySettings,
+	updates?: UpdateSettings,
 };
 
 export type Settings_Serialize = {
@@ -1236,6 +1243,7 @@ export type Settings_Serialize = {
 	commands: CustomCommand[],
 	browser: BrowserSettings,
 	overlay: OverlaySettings,
+	updates: UpdateSettings,
 };
 
 /**
@@ -1427,6 +1435,36 @@ export type TwitchChannel_Serialize = {
 	language: string | null,
 	followedAt: string | null,
 };
+
+/**  What Lurkn knows about a newer version of itself, as it changes. */
+export type UpdateChanged = UpdateStatus;
+
+/**
+ *  Whether Lurkn looks for a newer version of itself.
+ * 
+ *  The check is one request for a small file on GitHub, where releases are
+ *  published; nothing is installed without the reader asking for it.
+ */
+export type UpdateSettings = {
+	/**  Look on start and twice a day after that. */
+	check?: boolean,
+};
+
+export type UpdateStatus = 
+/**  Not looked yet. */
+{ kind: "unknown" } | { kind: "checking" } | { kind: "upToDate" } | 
+/**  No answer: offline, GitHub unreachable, or no build for this system. */
+{ kind: "checkFailed"; message: string } | { kind: "available"; version: string; 
+/**
+ *  Whether Lurkn can replace itself where it is installed. A `deb` or
+ *  `rpm`, and whatever a package manager installed, is updated the way
+ *  it was installed instead.
+ */
+installable: boolean } | { kind: "downloading"; version: string; 
+/**  `None` until the size is known. */
+percent: number | null } | 
+/**  Downloaded and its signature checked; installing, then restarting. */
+{ kind: "installing"; version: string } | { kind: "installFailed"; version: string; message: string };
 
 /**  A Twitch account. */
 export type User = {

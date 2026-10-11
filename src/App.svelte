@@ -6,6 +6,7 @@
   import Settings from '$lib/components/Settings.svelte';
   import Sidebar from '$lib/components/Sidebar.svelte';
   import TitleBar from '$lib/components/TitleBar.svelte';
+  import UpdateBar from '$lib/components/UpdateBar.svelte';
   import { activity, wantedFrom } from '$lib/chat/activity';
   import { commands, events, type AppInfo, type ChatMessage } from '$lib/ipc';
   import { onActivityAsked, sendActivity } from '$lib/ipc/relay';
@@ -13,6 +14,7 @@
   import { chat } from '$lib/stores/chat.svelte';
   import { follows } from '$lib/stores/follows.svelte';
   import { settings } from '$lib/stores/settings.svelte';
+  import { update } from '$lib/stores/update.svelte';
   import { whispers } from '$lib/stores/whispers.svelte';
   import { actionFor, isTyping, nativeMenu } from '$lib/ui/shortcuts';
   import { platform } from '$lib/ui/platform';
@@ -49,6 +51,7 @@
       await follows.start();
       await chat.start();
       await whispers.start();
+      await update.start();
 
       // Settings over the chat: the tray's Settings, or the settings window
       // putting itself back here at the group it was on. Rust has already
@@ -153,6 +156,7 @@
     follows.stop();
     chat.stop();
     whispers.stop();
+    update.stop();
     settings.stop();
   });
 
@@ -244,6 +248,8 @@
 {#if platform === 'macos' || !settings.current.window.hideTitleBar}
   <TitleBar />
 {/if}
+
+<UpdateBar />
 
 {#if settings.open}
   <Settings info={appInfo} />

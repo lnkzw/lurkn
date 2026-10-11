@@ -7,6 +7,7 @@ pub mod follows;
 pub mod moderation;
 pub mod overlay;
 pub mod settings;
+pub mod update;
 pub mod whispers;
 pub mod window;
 

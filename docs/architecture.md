@@ -916,6 +916,7 @@ Concrete, non-negotiable rules:
 6. Tauri capabilities: the WebView may move, minimise, maximise and close its window, write to the clipboard and open URLs — no shell, no file system.
 7. Tokens never cross IPC. The frontend learns who is logged in and which features are granted, and nothing more.
 8. Log redaction: the log writer scrubs anything shaped like a token before it reaches disk.
+9. Updates are installed only when their minisign signature verifies against the public key built into Lurkn, and only after the reader asks. The updater is driven from Rust; the WebView holds none of its permissions. §14.1
 
 The loopback pages carry their own rules: §7.2 and §7.3, summarised for users
 in `SECURITY.md`.
@@ -985,6 +986,43 @@ break silently when a provider changes its API.
 
 How a release is cut, packaged and published — and what is still to do before
 the first one — is in `docs/release.md`.
+
+### 14.1 Updates
+
+Lurkn looks for a newer version of itself with `tauri-plugin-updater`, driven
+entirely from Rust (`src-tauri/src/update.rs`). The WebView is granted none of
+the plugin's commands; it gets `update_status`, `update_check` and
+`update_install` and the `UpdateChanged` event, so nothing on the page can
+choose what is downloaded or skip the signature check.
+
+- **Where.** One endpoint, `releases/latest/download/latest.json` on GitHub.
+  `latest` never resolves to a draft or a pre-release, so nothing reaches
+  anyone before the release is published by hand.
+- **When.** 15 s after start, then whenever the last check is 12 hours old
+  (the loop wakes hourly, so switching checks back on takes effect within the
+  hour). Settings → Account turns it off (`updates.check`, on by default) and
+  offers *Check now*. A debug build never checks by itself.
+- **Trust.** Every update file is signed with the project's minisign key; the
+  public half is in `tauri.conf.json`, the private half and its password are
+  repository secrets that only the release workflow reads. The plugin refuses
+  a download whose signature does not verify, before anything is written, and
+  — with `requireSignedVersion` — one whose signed version is not the version
+  `latest.json` announces, so a tampered manifest cannot pass an older signed
+  build off as new.
+- **What installs.** Only the AppImage, the Windows installer and the Mac app
+  replace themselves (`installable()` reads the bundle type Tauri patches into
+  the binary). A `deb` or `rpm` would need root and would go behind the package
+  manager's back, and the AUR package is built from the `deb`, so those only
+  say a new version is out and link to it. Installing always waits for the
+  reader: a bar above the chat offers *Install and restart*, and *Not now*
+  keeps that version out of sight until the next start.
+- **Release side.** `tauri.release.conf.json` switches on
+  `createUpdaterArtifacts`; only the release workflow passes it, so building
+  from source needs no key. `tauri-action` signs each bundle and merges it into
+  `latest.json`; a last job fails the draft if any platform's entry
+  (`linux-x86_64-appimage`, `windows-x86_64-nsis`, `darwin-{aarch64,x86_64}-app`)
+  is missing — parallel builds can overwrite each other's, and an AppImage
+  falling back to the plain `linux-x86_64` entry would be handed the `deb`.
 
 ---
 

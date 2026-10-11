@@ -310,6 +310,25 @@ impl Default for ActivitySettings {
     }
 }
 
+/// Whether Lurkn looks for a newer version of itself.
+///
+/// The check is one request for a small file on GitHub, where releases are
+/// published; nothing is installed without the reader asking for it.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, Type)]
+#[serde(rename_all = "camelCase", default)]
+pub struct UpdateSettings {
+    /// Look on start and twice a day after that.
+    pub check: bool,
+}
+
+impl Default for UpdateSettings {
+    fn default() -> Self {
+        // On: an outdated chat client breaks quietly when Twitch changes
+        // something, and the check says nothing about the reader.
+        Self { check: true }
+    }
+}
+
 /// What Lurkn does while the reader is the one streaming.
 ///
 /// Whether they are live comes from Twitch's `stream.online`, which needs no
@@ -741,6 +760,7 @@ pub struct Settings {
     #[specta(type = BrowserSettings)]
     pub browser: BrowserSettings,
     pub overlay: OverlaySettings,
+    pub updates: UpdateSettings,
 }
 
 impl Settings {
@@ -1010,6 +1030,7 @@ mod tests {
         assert!(s.chat.show_timestamps);
         assert!(s.chat.show_badges);
         assert_eq!(s.chat.font_size, 13);
+        assert!(s.updates.check);
     }
 
     fn with_font_size(font_size: u8) -> Settings {

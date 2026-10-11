@@ -13,6 +13,7 @@ mod state;
 mod tasks;
 mod theme;
 mod tray;
+mod update;
 mod watch;
 
 use tauri::Manager;
@@ -141,6 +142,9 @@ fn specta_builder() -> Builder<tauri::Wry> {
             commands::overlay::overlay_status,
             commands::overlay::overlay_test,
             commands::overlay::overlay_preview,
+            commands::update::update_status,
+            commands::update::update_check,
+            commands::update::update_install,
         ])
         .events(collect_events![
             events::AuthChanged,
@@ -159,10 +163,12 @@ fn specta_builder() -> Builder<tauri::Wry> {
             events::OpenChannelChanged,
             events::OwnStreamChanged,
             events::ModerationEvent,
+            events::UpdateChanged,
         ])
 }
 
 /// Where the generated TypeScript lands. Relative to `src-tauri/`.
+#[cfg(any(debug_assertions, test))]
 const BINDINGS_PATH: &str = "../src/lib/ipc/bindings.ts";
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
@@ -192,6 +198,8 @@ pub fn run() {
         .plugin(tauri_plugin_clipboard_manager::init())
         .plugin(tauri_plugin_notification::init())
         .plugin(tauri_plugin_opener::init())
+        // Driven from Rust only; the WebView is granted none of its commands.
+        .plugin(tauri_plugin_updater::Builder::new().build())
         .invoke_handler(builder.invoke_handler())
         .setup(move |app| {
             builder.mount_events(app);
@@ -199,6 +207,7 @@ pub fn run() {
             let handle = app.handle().clone();
             let browser = std::sync::Arc::new(browser::SystemBrowser::new(handle.clone()));
             app.manage(state::AppState::new(handle.clone(), browser));
+            app.manage(update::Updates::default());
 
             // Restoring can hit the network, so it must not block the window.
             let poller_handle = handle.clone();
@@ -220,6 +229,7 @@ pub fn run() {
             tauri::async_runtime::spawn(tasks::follows::run_poller(poller_handle.clone()));
             tauri::async_runtime::spawn(tasks::chat::run_pump(poller_handle));
             tauri::async_runtime::spawn(theme::run(app.handle().clone()));
+            tauri::async_runtime::spawn(update::run(app.handle().clone()));
 
             // The tray is what makes closing the window safe: the chat socket,
             // the whisper subscription and the watch-window server all live in

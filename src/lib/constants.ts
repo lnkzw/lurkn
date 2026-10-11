@@ -11,3 +11,6 @@ export const MIN_OVERLAY_FONT_SIZE = 12;
 export const MAX_OVERLAY_FONT_SIZE = 64;
 export const MAX_OVERLAY_RADIUS = 32;
 export const MAX_OVERLAY_MESSAGES = 50;
+
+/** Where Lurkn's source, releases and license notices live. */
+export const REPOSITORY = 'https://github.com/lnkzw/lurkn';

@@ -57,6 +57,7 @@ export type ResolvedSettings = {
     followChat: NonNullable<NonNullable<Settings['browser']>['followChat']>;
   };
   overlay: Full<NonNullable<Settings['overlay']>>;
+  updates: Full<NonNullable<Settings['updates']>>;
 };
 
 /** Mirrors the Rust defaults so the UI renders before the first round trip. */
@@ -141,6 +142,7 @@ const DEFAULTS: ResolvedSettings = {
       'soundalerts',
     ],
   },
+  updates: { check: true },
 };
 
 /** Blank rows, for the settings screen's Add buttons and for filling gaps. */
@@ -200,6 +202,7 @@ export function normalise(settings: Settings): ResolvedSettings {
       followChat: settings.browser?.followChat ?? DEFAULTS.browser.followChat,
     },
     overlay: { ...DEFAULTS.overlay, ...settings.overlay } as ResolvedSettings['overlay'],
+    updates: { ...DEFAULTS.updates, ...settings.updates },
   };
 }
 

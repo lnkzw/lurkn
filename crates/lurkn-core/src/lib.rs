@@ -29,7 +29,7 @@ pub use settings::{
     ChatSettings, CustomCommand, EmoteSize, HighlightBadge, HighlightPhrase, HighlightSettings,
     HighlightUser, IgnoreAction, IgnorePhrase, IgnoreSettings, LaunchMode, NotificationSettings,
     OverlayLayout, OverlaySettings, OverlaySource, Settings, SidebarPosition, SidebarSettings,
-    StatusBarPosition, StreamPage, ThemePreference, WindowSettings,
+    StatusBarPosition, StreamPage, ThemePreference, UpdateSettings, WindowSettings,
 };
 pub use url::{twitch_channel_url, twitch_player_url};
 pub use whisper::{Whisper, WhisperThread};

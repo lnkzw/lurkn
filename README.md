@@ -52,6 +52,9 @@ No telemetry, no account with Lurkn. It talks to:
 - **7TV, BetterTTV and FrankerFaceZ**, for the emotes of the channels you open;
 - **recent-messages.robotty.de** — only if you switch on chat history, which
   tells that service which channels you open. Off by default.
+- **GitHub**, to see whether a newer Lurkn is out: on start and twice a day,
+  asking for one file that is the same for everyone. Switch it off in
+  *Settings → Account*. Nothing is installed until you say so.
 
 Your Twitch session sits in your system keyring. Lurkn uses Twitch's device
 login, so your password never reaches it, and it has no client secret. It asks

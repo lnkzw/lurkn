@@ -16,11 +16,13 @@
   import { auth } from '$lib/stores/auth.svelte';
   import { platform } from '$lib/ui/platform';
   import { settings, type ResolvedSettings } from '$lib/stores/settings.svelte';
+  import { statusLine, update } from '$lib/stores/update.svelte';
   import {
     MAX_FONT_SIZE,
     MAX_HEADER_FONT_SIZE,
     MIN_FONT_SIZE,
     MIN_HEADER_FONT_SIZE,
+    REPOSITORY,
   } from '$lib/constants';
 
   interface Props {
@@ -39,6 +41,14 @@
   const notifications = $derived(settings.current.notifications);
   const broadcast = $derived(settings.current.broadcast);
   const feed = $derived(settings.current.activity);
+  const updates = $derived(settings.current.updates);
+  const updateStatus = $derived(update.status);
+  const updateLine = $derived(statusLine(updateStatus));
+  const updateBusy = $derived(
+    updateStatus.kind === 'checking' ||
+      updateStatus.kind === 'downloading' ||
+      updateStatus.kind === 'installing',
+  );
 
   const sidebar = $derived(settings.current.sidebar);
   const windowSettings = $derived(settings.current.window);
@@ -262,7 +272,7 @@
    * screen would be worse than no count.
    */
   const SEARCHABLE = [
-    'account login logout session scopes permissions twitch keyring version licenses open source',
+    'account login logout session scopes permissions twitch keyring version updates upgrade licenses open source',
     'appearance theme dark light font size emote colour color file folder toml custom rice palette',
     'window title bar scrollbars decorations drag header font size menu settings popout pop out',
     'channel list sidebar rail position offline follows drawer',
@@ -422,7 +432,7 @@
         {#if matches === 0}
           <p class="none">Nothing in settings matches that.</p>
         {/if}
-        {#if shown('account', "account login logout session scopes permissions twitch keyring version licenses open source")}
+        {#if shown('account', "account login logout session scopes permissions twitch keyring version updates upgrade licenses open source")}
         <section>
           <h3>Account</h3>
           {#if account}
@@ -460,20 +470,48 @@
             </InfoHint>
           </div>
 
-          {#if info}
-            <p class="note dim">
-              Lurkn v{info.version} ·
-              <button
-                class="link"
-                onclick={() =>
-                  void commands.openLink(
-                    'https://github.com/lnkzw/lurkn/blob/main/THIRD_PARTY_LICENSES.md',
-                  )}
-              >
-                Open-source licenses
+          <div class="check-row">
+            <label class="check">
+              <input
+                type="checkbox"
+                checked={updates.check}
+                onchange={(e) => void settings.update({ updates: { check: e.currentTarget.checked } })}
+              />
+              Check for updates
+            </label>
+            <InfoHint label="update checks">
+              Lurkn asks GitHub, where its releases are published, when it starts and twice a
+              day after that. Nothing is installed until you say so, and only a download
+              signed by Lurkn's release key is installed at all.
+            </InfoHint>
+          </div>
+          <p class="note dim">
+            {#if info}Lurkn v{info.version} ·{/if}
+            {#if updateLine}{updateLine} ·{/if}
+            {#if updateStatus.kind === 'available' && updateStatus.installable}
+              <button class="link" onclick={() => void update.install()}>Install and restart</button>
+            {:else if updateStatus.kind === 'available'}
+              <button class="link" onclick={() => update.openPage(updateStatus.version)}>
+                What's new
               </button>
-            </p>
-          {/if}
+            {:else if updateStatus.kind === 'installFailed'}
+              <button class="link" onclick={() => update.openPage(updateStatus.version)}>
+                Download it
+              </button>
+            {:else}
+              <button class="link" onclick={() => void update.check()} disabled={updateBusy}>
+                Check now
+              </button>
+            {/if}
+          </p>
+          <p class="note dim">
+            <button
+              class="link"
+              onclick={() => void commands.openLink(`${REPOSITORY}/blob/main/THIRD_PARTY_LICENSES.md`)}
+            >
+              Open-source licenses
+            </button>
+          </p>
         </section>
         {/if}
 

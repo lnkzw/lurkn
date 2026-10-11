@@ -89,13 +89,43 @@ jobs:
           cache: pnpm
       - run: pnpm install --frozen-lockfile
 
+      # tauri.release.conf.json switches on the signed update files, which need
+      # the private key; a build from source leaves them out and needs no key.
+      # The action merges each build's entry into the release's latest.json,
+      # which the updater reads (docs/architecture.md §14.1).
       - uses: tauri-apps/tauri-action@v0
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
+          TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
         with:
           tagName: ${{ github.ref_name }}
           releaseName: Lurkn ${{ github.ref_name }}
           releaseBody: ${{ needs.notes.outputs.body }}
           releaseDraft: true
           prerelease: false
-          args: ${{ matrix.args }}
+          updaterJsonPreferNsis: true
+          args: --config src-tauri/tauri.release.conf.json ${{ matrix.args }}
+
+  # The three builds write latest.json one after another and can overwrite each
+  # other's entry. A platform missing from it would never be offered the
+  # update, or — worse — fall back to a file meant for another bundle, so the
+  # draft is checked before anyone publishes it. Re-running the failed build
+  # job puts its entry back.
+  updater:
+    needs: build
+    runs-on: ubuntu-latest
+    steps:
+      - name: latest.json names every platform
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh release download "$GITHUB_REF_NAME" -R "$GITHUB_REPOSITORY" -p latest.json -D "$RUNNER_TEMP"
+          for platform in linux-x86_64-appimage windows-x86_64-nsis darwin-aarch64-app darwin-x86_64-app; do
+            if ! jq -e --arg p "$platform" '.platforms[$p] | .url and .signature' \
+                "$RUNNER_TEMP/latest.json" > /dev/null; then
+              echo "::error::latest.json has no $platform entry"
+              exit 1
+            fi
+          done
+          jq '.platforms | keys' "$RUNNER_TEMP/latest.json"

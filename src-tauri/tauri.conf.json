@@ -119,5 +119,13 @@
       "icons/icon.ico"
     ]
   },
-  "plugins": {}
+  "plugins": {
+    "updater": {
+      "pubkey": "dW50cnVzdGVkIGNvbW1lbnQ6IG1pbmlzaWduIHB1YmxpYyBrZXk6IEExRTFFOEU1OUEwQTUzOEYKUldTUFV3cWE1ZWpob1lxQ0NQbllSaGdOQk5OWlk4dzlBZ3ZRcDREOUtMeTJ1S2JIS091WDRReVkK",
+      "endpoints": [
+        "https://github.com/lnkzw/lurkn/releases/latest/download/latest.json"
+      ],
+      "requireSignedVersion": true
+    }
+  }
 }

@@ -3,9 +3,9 @@
   to show it over the chat. The same frontend as the main window, loaded under
   `?view=settings` (see main.ts).
 
-  It starts only what the screen reads — settings and the login state — and
-  none of chat, follows or whispers: those belong to the main window, and a
-  second copy here would only double their traffic.
+  It starts only what the screen reads — settings, the login state and the
+  update status — and none of chat, follows or whispers: those belong to the
+  main window, and a second copy here would only double their traffic.
 -->
 <script lang="ts">
   import { onDestroy, onMount } from 'svelte';
@@ -15,6 +15,7 @@
   import { commands, events, type AppInfo } from '$lib/ipc';
   import { auth } from '$lib/stores/auth.svelte';
   import { settings } from '$lib/stores/settings.svelte';
+  import { update } from '$lib/stores/update.svelte';
   import { nativeMenu } from '$lib/ui/shortcuts';
 
   let info = $state<AppInfo | null>(null);
@@ -27,6 +28,7 @@
   onMount(async () => {
     await settings.start();
     await auth.start();
+    await update.start();
     // Already open and asked for again, at another group.
     unlistenSection = await events.settingsSection.listen((event) => {
       settings.section = event.payload;
@@ -37,6 +39,7 @@
   onDestroy(() => {
     unlistenSection?.();
     auth.stop();
+    update.stop();
     settings.stop();
   });
 

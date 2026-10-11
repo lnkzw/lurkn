@@ -31,7 +31,7 @@ decision does not have to be re-derived.
 - [x] Issue templates: bug (asks for OS, version and the log from Settings → Advanced), feature request.
 - [x] `CHANGELOG.md`, Keep a Changelog style; the release workflow takes the notes from it.
 - [x] Remove the original specification (`project.md`): it predates most decisions (it still said IRC). `docs/architecture.md` is the one design document, and nothing refers to the spec any more.
-- [x] Twitch Developer Console: app name `lurkn`, category Other. The client id is public by design (device-code flow, no secret) and may sit in the source.
+- [x] Twitch Developer Console: app name `Lurkn`, category Other. The client id is public by design (device-code flow, no secret) and may sit in the source.
 - [x] One initial commit, pushed to `github.com/lnkzw/lurkn`; the private history stays local.
 
 ### License
@@ -66,8 +66,11 @@ Lurkn was written on and for Linux. These are the gaps found in the code, not gu
 
 - [x] Bundles: Linux `deb`, `rpm`, `appimage`; Windows `nsis` (no MSI, per-user install, no admin prompt); macOS `app` and `dmg` as one universal build. Set per system in `src-tauri/tauri.{linux,windows,macos}.conf.json`. macOS needs 12 or later: the interface leans on CSS `color-mix()`, which macOS's WebKit has from Safari 16.2.
 - [x] macOS ad-hoc signing: `bundle.macOS.signingIdentity: "-"`.
-- [ ] Updater: `tauri-plugin-updater`, a minisign key pair (private key and password as repository secrets, public key in `tauri.conf.json`), `latest.json` attached to each release. Covers AppImage, Windows and macOS; `deb`, `rpm` and AUR update through their package manager. In-app: "Update available" in the status area, install on confirm, never silently.
-- [x] `.github/workflows/release.yml` on tag `v*`: `tauri-apps/tauri-action` across `ubuntu-22.04`, `windows-latest`, `macos-latest` (universal) → draft release with notes from `CHANGELOG.md`; publishing the draft is a manual click. Untested until the repository exists — the first tag is its first run. The updater's `latest.json` joins it once the signing key is in place.
+- [x] Updater: `tauri-plugin-updater` driven from Rust, a minisign key pair (private key and password as the repository secrets `TAURI_SIGNING_PRIVATE_KEY` and `TAURI_SIGNING_PRIVATE_KEY_PASSWORD`, public key in `tauri.conf.json`), `latest.json` attached to each release. AppImage, Windows and macOS install in place; `deb`, `rpm` and AUR only say a version is out. In-app: a bar above the chat, install on confirm, never silently; checks can be switched off. Details in `docs/architecture.md` §14.1.
+  - The key lives in `~/.tauri/lurkn.key`, its password in the maintainer's password manager. Losing either means installed copies can never verify an update again: everyone would have to reinstall by hand once, from a build carrying a new public key.
+  - Signing needs the key, so only the release workflow switches it on (`--config src-tauri/tauri.release.conf.json`); `pnpm tauri build` from source stays keyless.
+  - `requireSignedVersion` is on from the first release: the CLI writes the version into each signature's trusted comment (`base64 -d < file.sig` shows `version:`), and the plugin refuses a download whose signed version differs from the one `latest.json` announces. A tampered `latest.json` therefore cannot offer an older, genuinely signed build as new.
+- [x] `.github/workflows/release.yml` on tag `v*`: `tauri-apps/tauri-action` across `ubuntu-22.04`, `windows-latest`, `macos-latest` (universal) → draft release with notes from `CHANGELOG.md` and a signed `latest.json`; publishing the draft is a manual click. A last job checks `latest.json` names every platform. Untested until the first tag — that is its first run.
 - [x] Version bump helper: `just release 0.y.z` (`scripts/version.mjs`) sets the version in `Cargo.toml`, `package.json` and `tauri.conf.json`, dates the changelog section and prints the git commands — it commits and tags nothing itself. The release workflow runs its `--check` first, so a tag that disagrees with the files fails before anything is built.
 - [ ] Optional: `nightly.yml` building `main` into a single rolling pre-release, for testers — never offered by the updater.
 
@@ -98,7 +101,7 @@ Not planned: Chocolatey (manual moderation per version), Flathub (offline vendor
 - [ ] `CHANGELOG.md` section for the version.
 - [ ] Version bumped everywhere (helper).
 - [ ] CI green on `main` on all three systems.
-- [ ] Tag `v0.y.z`, wait for the draft, smoke-test one download per OS.
+- [ ] Tag `v0.y.z`, wait for the draft and the `updater` job, smoke-test one download per OS. If `updater` failed, re-run the build job whose platform is missing.
 - [ ] Publish; check AUR, Scoop and Homebrew picked it up; winget PR merged.
 
 ## First launch without signing (README text)

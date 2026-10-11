@@ -45,5 +45,9 @@ The first public release.
 ### Everywhere
 
 - A tray icon; closing the window keeps chat and whispers running.
+- Tells you when a new version is out. The AppImage, the Windows installer and
+  the Mac app install it when you click, and only if it carries Lurkn's
+  signature; a `deb`, `rpm` or package-manager install updates the way it was
+  installed. Checks can be switched off.
 - Settings over the chat or in a window of their own.
 - Linux, Windows and macOS builds.

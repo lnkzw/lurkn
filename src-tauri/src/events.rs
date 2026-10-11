@@ -122,3 +122,7 @@ pub enum ModerationEvent {
     /// Followers-only, slow mode and friends changed.
     RoomState { state: lurkn_core::RoomState },
 }
+
+/// What Lurkn knows about a newer version of itself, as it changes.
+#[derive(Debug, Clone, Serialize, Deserialize, Type, Event)]
+pub struct UpdateChanged(pub crate::update::UpdateStatus);

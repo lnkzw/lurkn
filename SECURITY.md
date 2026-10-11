@@ -23,7 +23,8 @@ answered as soon as someone can, and fixed in the next release.
 - **A log**, with tokens removed before anything is written.
 
 No telemetry. Lurkn talks to Twitch, to the 7TV, BetterTTV and FrankerFaceZ
-emote services, and — only with chat history switched on — to
+emote services, to GitHub to look for a newer version (unless that is switched
+off), and — only with chat history switched on — to
 `recent-messages.robotty.de`.
 
 ## What Lurkn serves on your machine
@@ -53,3 +54,8 @@ and checked image URLs (CI fails on any raw-HTML API). Links from chat open in
 your browser, never inside Lurkn, and only `http` and `https`. The WebView runs
 under a strict content security policy with no access to the shell or the file
 system.
+
+Updates are installed only when you confirm, and only when the download's
+signature verifies against the release key built into Lurkn; a file that does
+not verify is discarded before anything is written. The private half of that
+key is held as a GitHub Actions secret and used by the release workflow alone.
