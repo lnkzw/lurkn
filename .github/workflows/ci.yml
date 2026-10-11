@@ -87,3 +87,30 @@ jobs:
 
       - name: Rust tests
         run: cargo test --workspace
+
+  # What the dependency tree may contain, and that the notices shipped with
+  # Lurkn match it. See deny.toml and about.toml.
+  dependencies:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: taiki-e/install-action@v2
+        with:
+          tool: cargo-deny@0.20.2,cargo-about@0.9.2
+
+      - name: Licenses, bans and sources
+        run: cargo deny check licenses bans sources
+
+      # A new RustSec advisory should be seen, not block unrelated work.
+      - name: Security advisories
+        continue-on-error: true
+        run: cargo deny check advisories
+
+      - name: THIRD_PARTY_LICENSES.md is current
+        run: |
+          cargo about generate about.hbs -o "$RUNNER_TEMP/licenses.md"
+          if ! diff -q THIRD_PARTY_LICENSES.md "$RUNNER_TEMP/licenses.md" >/dev/null; then
+            echo "::error::THIRD_PARTY_LICENSES.md is out of date — run 'just licenses' and commit it"
+            exit 1
+          fi

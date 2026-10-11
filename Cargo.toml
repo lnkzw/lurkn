@@ -7,6 +7,8 @@ version = "0.1.0"
 edition = "2021"
 rust-version = "1.98"
 license = "MIT"
+# An app, not a library: nothing here goes to crates.io.
+publish = false
 repository = "https://github.com/lnkzw/lurkn"
 
 [workspace.dependencies]

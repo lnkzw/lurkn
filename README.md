@@ -145,5 +145,7 @@ Raise verbosity with `LURKN_LOG=debug`. Settings → Advanced shows the tail.
 
 ## License
 
-[MIT](LICENSE). Icons drawn from Material Icons (Apache-2.0) and Lucide (ISC)
-are marked where they are used.
+[MIT](LICENSE). The licenses of everything Lurkn is built on — the Rust crates,
+Svelte, the Tauri packages and two icon sets — are in
+[THIRD_PARTY_LICENSES.md](THIRD_PARTY_LICENSES.md), which ships inside every
+download as well.

@@ -52,3 +52,11 @@ build:
 # Set a new version everywhere and date its changelog section.
 release VERSION:
     node scripts/version.mjs {{VERSION}}
+
+# Regenerate THIRD_PARTY_LICENSES.md from the dependency tree (needs cargo-about).
+licenses:
+    cargo about generate about.hbs -o THIRD_PARTY_LICENSES.md
+
+# Licenses, advisories, bans and sources of the dependency tree (needs cargo-deny).
+deny:
+    cargo deny check

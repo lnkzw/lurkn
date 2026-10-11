@@ -262,7 +262,7 @@
    * screen would be worse than no count.
    */
   const SEARCHABLE = [
-    'account login logout session scopes permissions twitch keyring',
+    'account login logout session scopes permissions twitch keyring version licenses open source',
     'appearance theme dark light font size emote colour color file folder toml custom rice palette',
     'window title bar scrollbars decorations drag header font size menu settings popout pop out',
     'channel list sidebar rail position offline follows drawer',
@@ -422,7 +422,7 @@
         {#if matches === 0}
           <p class="none">Nothing in settings matches that.</p>
         {/if}
-        {#if shown('account', "account login logout session scopes permissions twitch keyring")}
+        {#if shown('account', "account login logout session scopes permissions twitch keyring version licenses open source")}
         <section>
           <h3>Account</h3>
           {#if account}
@@ -461,7 +461,18 @@
           </div>
 
           {#if info}
-            <p class="note dim">Lurkn v{info.version}</p>
+            <p class="note dim">
+              Lurkn v{info.version} ·
+              <button
+                class="link"
+                onclick={() =>
+                  void commands.openLink(
+                    'https://github.com/lnkzw/lurkn/blob/main/THIRD_PARTY_LICENSES.md',
+                  )}
+              >
+                Open-source licenses
+              </button>
+            </p>
           {/if}
         </section>
         {/if}

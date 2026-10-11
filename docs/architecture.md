@@ -951,7 +951,9 @@ optional subscription); the loopback servers over real sockets.
 **CI** (`.github/workflows/ci.yml`): `cargo fmt --check`, `cargo clippy -D
 warnings` and `cargo test` on Linux, Windows and macOS; on Linux also that
 `bindings.ts` is committed as generated, `pnpm lint`, `pnpm check`, `pnpm test`,
-the raw-HTML grep, and a release build.
+the raw-HTML grep, and a release build. A dependency job runs `cargo-deny`
+(licenses, sources and bans block; security advisories warn) and checks that
+`THIRD_PARTY_LICENSES.md` matches the tree.
 
 Not in CI: anything hitting real Twitch or real 7TV/BTTV/FFZ.
 `crates/lurkn-emotes/tests/live.rs` holds those checks, marked `#[ignore]` and
