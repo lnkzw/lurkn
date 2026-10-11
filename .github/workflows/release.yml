@@ -24,6 +24,9 @@ jobs:
       - uses: actions/setup-node@v5
         with:
           node-version: 24
+          # Plain Node runs the script. Without this, setup-node sees pnpm in
+          # package.json and looks for it to cache its store.
+          package-manager-cache: false
 
       # A tag that disagrees with the files would ship a mislabelled build.
       - name: The tag matches the version
