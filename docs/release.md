@@ -1,0 +1,112 @@
+# Releasing Lurkn
+
+What stands between this repository and public 0.x releases on GitHub for
+Linux, Windows and macOS, and what each release needs once it is set up.
+Tick items off here as they land; the reasoning lives beside them so a
+decision does not have to be re-derived.
+
+## Decisions
+
+| | |
+| --- | --- |
+| **Distribution** | GitHub Releases and each OS's package managers. No app stores. |
+| **Versioning** | 0.x SemVer, no "beta" label: 0.x already says "not stable yet". Plain `0.y.z` also keeps the Windows installers happy — MSI refuses pre-release tags like `-beta.1`. |
+| **Branching** | Trunk-based: `main` is always releasable, a release is a tag `v0.y.z` on `main`. A `release/0.y` branch is cut only when a fix has to go out for an older line while `main` has moved on — for one maintainer on 0.x that is rare, and a standing release branch would be merge overhead with nothing to show for it. |
+| **History** | The public repository starts with one initial commit. The private history stays private. |
+| **Code signing** | None. No Apple Developer account, no Windows certificate. macOS builds are ad-hoc signed (Apple Silicon will not run a binary with no signature at all); first launch needs the one-time Gatekeeper step below. Windows shows a SmartScreen warning once. Both are documented in the README rather than paid away. |
+| **Identifier** | No domain, no ownership claim: `io.github.lnkzw.lurkn`, the convention for projects that live on GitHub. It names the macOS bundle and the Windows app id; changing it after a release orphans notification and single-instance registrations. Data folders and the keychain entry do not depend on it. |
+| **License** | Proposed: MIT — see [License](#license). Pending confirmation. |
+| **Transparency** | The README says plainly that Lurkn is built with an AI coding assistant, directed and reviewed by a person, and comes with no warranty. |
+
+## 1. Repository
+
+- [x] Repository content reviewed for the public: no references to other clients, no outdated specification, no personal names in fixtures, dead code from early scaffolding removed.
+- [x] Create the GitHub account (`lnkzw`) and the empty `lurkn` repository.
+- [x] Set `identifier` in `src-tauri/tauri.conf.json` to `io.github.lnkzw.lurkn`.
+- [x] Point `repository` in `Cargo.toml` at `github.com/lnkzw/lurkn`, and the README and issue links with it.
+- [x] `LICENSE` at the root; `license` in `Cargo.toml` and `package.json` to match.
+- [ ] Third-party notices: Material Icons `live_tv` (Apache-2.0, chat header), Lucide arrows (ISC, synced window page); dependency licenses generated with `cargo-about`, checked in CI with `cargo-deny`.
+- [x] README rewrite: what Lurkn is, screenshots, install per OS (including the macOS and Windows first-launch steps), the AI disclaimer, privacy (no telemetry; which third parties are contacted and when — Twitch, 7TV, BTTV, FFZ, and `recent-messages.robotty.de` only when history is switched on).
+- [x] `SECURITY.md`: how to report, and what the loopback servers (synced window, overlay) expose and to whom.
+- [x] Issue templates: bug (asks for OS, version and the log from Settings → Advanced), feature request.
+- [x] `CHANGELOG.md`, Keep a Changelog style; the release workflow takes the notes from it.
+- [x] Remove the original specification (`project.md`): it predates most decisions (it still said IRC). `docs/architecture.md` is the one design document, and nothing refers to the spec any more.
+- [ ] Twitch Developer Console: app name and category final. The client id is public by design (device-code flow, no secret) and may sit in the source.
+- [ ] Squash into the initial commit, push.
+
+### License
+
+MIT, as `Cargo.toml` already declares: anyone may use, change and redistribute Lurkn, including in closed software, as long as the notice stays. That matches "no ownership claim" best.
+
+Not GPL: copyleft only works by enforcing copyright, which is the opposite of not claiming any — and how much copyright attaches to AI-assisted code is legally unsettled. Not dual MIT/Apache-2.0 either: the Apache patent grant protects contributors with patents, which this project does not have, and two licenses are more to explain than one. The copyright line reads `Lurkn contributors`, not a person.
+
+### Disclaimer (draft for the README)
+
+> Lurkn is built with an AI coding assistant (Claude Code). A person decides
+> what it does, how it should behave and what ships; the assistant writes most
+> of the code. Every change goes through the same checks — formatting, lints,
+> several hundred tests, a release build — but no one has audited it line by
+> line. It is provided as is, without warranty of any kind (see LICENSE).
+> Lurkn is not affiliated with or endorsed by Twitch.
+
+## 2. Cross-platform
+
+Lurkn was written on and for Linux. These are the gaps found in the code, not guesses.
+
+- [x] **Data, session and log folders** come from `XDG_*`/`HOME`. Windows usually has no `HOME`, so the database fell back to memory — settings and whispers gone on every restart — and there were no logs. Use the platform's folders: Linux unchanged (`~/.local/share/lurkn`, `~/.local/state/lurkn/logs`), macOS `~/Library/Application Support/lurkn` and `~/Library/Logs/lurkn`, Windows `%LOCALAPPDATA%\lurkn`. Theme files keep their own rule (`~/.config/lurkn` everywhere, `%APPDATA%\lurkn` on Windows).
+- [x] **Single instance.** A second launch started a second process, tray icon and database connection. `tauri-plugin-single-instance` instead brings the running window forward.
+- [x] **Browser choice is Linux-only.** Detection reads freedesktop desktop entries, so on Windows and macOS only "system default" and "custom command" exist, and app/kiosk mode and "new window" silently did nothing. Hidden there for now; real detection (Windows registry `StartMenuInternet`, macOS `/Applications`) is later work.
+- [x] **macOS window chrome.** The custom title bar draws Windows-style buttons on the right. On macOS: native traffic lights over the content (`titleBarStyle: Overlay`), Lurkn's bar keeps the drag area and leaves room for them. Same for the settings and activity windows.
+- [ ] **macOS tray icon** as a template image, so it follows the menu bar's light/dark. Needs a monochrome tray icon first — the colour app icon would turn into a solid blob.
+- [ ] Check the traffic-light positions on a real Mac (`trafficLightPosition` in `tauri.macos.conf.json`, `framed()` in `commands/window.rs`); they are set by arithmetic, not by eye.
+- [x] **CI on all three systems**: Rust lints and tests on Windows and macOS too, not only Linux. Checked locally for Windows ahead of the first run: clippy with `-D warnings` and every test pass for `x86_64-pc-windows-gnu` under Wine (2026-10-11) — one Unix-only test file is now gated. Not covered by that: the MSVC toolchain CI uses, and anything that needs a real WebView2.
+- [ ] First real run on Windows and macOS (VM or borrowed machine): login, chat, emotes, tray, notifications, keyring, synced window, overlay.
+
+## 3. Release pipeline
+
+- [x] Bundles: Linux `deb`, `rpm`, `appimage`; Windows `nsis` (no MSI, per-user install, no admin prompt); macOS `app` and `dmg` as one universal build. Set per system in `src-tauri/tauri.{linux,windows,macos}.conf.json`. macOS needs 12 or later: the interface leans on CSS `color-mix()`, which macOS's WebKit has from Safari 16.2.
+- [x] macOS ad-hoc signing: `bundle.macOS.signingIdentity: "-"`.
+- [ ] Updater: `tauri-plugin-updater`, a minisign key pair (private key and password as repository secrets, public key in `tauri.conf.json`), `latest.json` attached to each release. Covers AppImage, Windows and macOS; `deb`, `rpm` and AUR update through their package manager. In-app: "Update available" in the status area, install on confirm, never silently.
+- [x] `.github/workflows/release.yml` on tag `v*`: `tauri-apps/tauri-action` across `ubuntu-22.04`, `windows-latest`, `macos-latest` (universal) → draft release with notes from `CHANGELOG.md`; publishing the draft is a manual click. Untested until the repository exists — the first tag is its first run. The updater's `latest.json` joins it once the signing key is in place.
+- [x] Version bump helper: `just release 0.y.z` (`scripts/version.mjs`) sets the version in `Cargo.toml`, `package.json` and `tauri.conf.json`, dates the changelog section and prints the git commands — it commits and tags nothing itself. The release workflow runs its `--check` first, so a tag that disagrees with the files fails before anything is built.
+- [ ] Optional: `nightly.yml` building `main` into a single rolling pre-release, for testers — never offered by the updater.
+
+## 4. Package managers
+
+Own repositories first — no review queue, updated by the release workflow:
+
+- [ ] **AUR** `lurkn-bin` (from the release `deb` or AppImage), pushed by an action with an AUR SSH key.
+- [ ] **Scoop** bucket `lnkzw/scoop-lurkn`, manifest with `checkver`/`autoupdate`.
+- [ ] **Homebrew** tap `lnkzw/homebrew-lurkn`, cask with a caveat for the Gatekeeper step.
+
+Then:
+
+- [ ] **winget**: first submission by hand to `microsoft/winget-pkgs`, later releases by action (needs a GitHub token with PR rights on a fork).
+
+Not planned: Chocolatey (manual moderation per version), Flathub (offline vendored builds, and close to a store), Snap (a store), own apt/dnf repositories (the release files and AUR cover it until someone asks).
+
+## 5. Polish
+
+- [ ] **Localisation**: English and German first.
+  - Frontend: Paraglide JS — messages compiled to typed functions, unused ones dropped from the bundle.
+  - Rust: user-facing errors become codes the frontend words; tray labels and notifications from a small table keyed by the system language.
+  - The long settings hints are most of the work; untranslated strings fall back to English.
+- [ ] **Channel list**: changes to be specified.
+
+## Every release
+
+- [ ] `CHANGELOG.md` section for the version.
+- [ ] Version bumped everywhere (helper).
+- [ ] CI green on `main` on all three systems.
+- [ ] Tag `v0.y.z`, wait for the draft, smoke-test one download per OS.
+- [ ] Publish; check AUR, Scoop and Homebrew picked it up; winget PR merged.
+
+## First launch without signing (README text)
+
+**macOS**: open Lurkn once; macOS says it cannot verify the developer. Open
+*System Settings → Privacy & Security*, scroll to the message about Lurkn and
+choose *Open Anyway*. Or in a terminal: `xattr -dr com.apple.quarantine
+/Applications/Lurkn.app`. Needed once per installed version.
+
+**Windows**: SmartScreen shows "Windows protected your PC". Choose *More info →
+Run anyway*. Needed once.

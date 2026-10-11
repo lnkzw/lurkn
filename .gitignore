@@ -1,0 +1,16 @@
+# Rust
+/target/
+/src-tauri/target/
+/src-tauri/gen/
+
+# Node
+node_modules/
+/dist/
+
+# Tooling
+.vite/
+*.log
+
+# Local overrides
+.env
+.env.local

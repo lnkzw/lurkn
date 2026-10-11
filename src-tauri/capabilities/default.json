@@ -1,0 +1,20 @@
+{
+  "$schema": "../gen/schemas/desktop-schema.json",
+  "identifier": "default",
+  "description": "Minimum surface the WebView needs: window controls for the custom title bar, clipboard write for the login code, and opening URLs. No shell execute, no filesystem. The settings and activity windows get the same and nothing more. See docs/architecture.md \u00a711 and \u00a78.6.",
+  "windows": [
+    "main",
+    "settings",
+    "activity"
+  ],
+  "permissions": [
+    "core:default",
+    "core:window:allow-start-dragging",
+    "core:window:allow-minimize",
+    "core:window:allow-toggle-maximize",
+    "core:window:allow-is-maximized",
+    "core:window:allow-close",
+    "clipboard-manager:allow-write-text",
+    "opener:allow-open-url"
+  ]
+}

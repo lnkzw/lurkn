@@ -1,0 +1,123 @@
+/* The built-in palettes. A theme file (docs/architecture.md §8.5) overrides
+   these tokens with inline properties on <html>, so every name here is part of
+   the theme format: rename one and existing themes silently stop applying it.
+   The file keys are listed in lurkn_core::theme::COLORS. */
+:root {
+  /* Tells the engine which palette to draw native widgets with. Without it a
+     <select>'s popup, checkboxes and the default scrollbars keep their light
+     styling on a dark page, which is unreadable. Page CSS cannot reach inside
+     a native dropdown, so this is the only fix. */
+  color-scheme: dark;
+
+  --bg: #0e0e10;
+  --bg-raised: #18181b;
+  --border: #2a2a2e;
+  --text: #efeff1;
+  --text-dim: #adadb8;
+  --accent: #9146ff;
+  /* Text and icons on an accent-filled surface. */
+  --on-accent: #fff;
+  /* Mentions and highlighted messages. Follows the accent unless a theme
+     separates them. */
+  --highlight: var(--accent);
+  --ok: #00c08b;
+  --warn: #ffb020;
+  /* The close button's hover. */
+  --danger: #e81123;
+  /* The live dot. */
+  --live: #eb0400;
+  /* The unread divider. Red on purpose, and used for nothing else, so the
+     line reads as "you were here" rather than as a warning. */
+  --unread: #e5484d;
+
+  /* The chat header and one avatar row are the same height on purpose, so the
+     first avatar lines up with the header across the divider. Both read these
+     rather than each picking its own padding. */
+  /* Scrollbar appearance is a setting, applied through inherited custom
+     properties so component styles pick it up without a specificity fight. */
+  --scrollbar-width: thin;
+  --scrollbar-size: 6px;
+  --scrollbar-thumb: transparent;
+  --scrollbar-thumb-hover: color-mix(in srgb, var(--text) 25%, transparent);
+
+  --avatar-size: 28px;
+  --rail-item-height: 36px;
+  --rail-gap: 6px;
+
+  --radius: 6px;
+  --font: system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
+  --mono: ui-monospace, 'JetBrains Mono', 'Fira Code', monospace;
+}
+
+:root[data-theme='light'] {
+  color-scheme: light;
+
+  --bg: #f7f7f8;
+  --bg-raised: #ffffff;
+  --border: #dedee3;
+  --text: #0e0e10;
+  --text-dim: #53535f;
+}
+
+:root[data-scrollbars='hidden'] {
+  --scrollbar-width: none;
+  --scrollbar-size: 0;
+  --scrollbar-thumb: transparent;
+  --scrollbar-thumb-hover: transparent;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+/* Every scrollable surface follows the setting. */
+*::-webkit-scrollbar {
+  width: var(--scrollbar-size);
+  height: var(--scrollbar-size);
+}
+
+*::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+*::-webkit-scrollbar-thumb {
+  background: var(--scrollbar-thumb);
+  border-radius: 3px;
+}
+
+*:hover::-webkit-scrollbar-thumb {
+  background: var(--scrollbar-thumb-hover);
+}
+
+html,
+body {
+  margin: 0;
+  height: 100%;
+  /* The window is undecorated, so nothing behind the document paints it. */
+  background: var(--bg);
+}
+
+body {
+  background: var(--bg);
+  color: var(--text);
+  font-family: var(--font);
+  font-size: 14px;
+  line-height: 1.5;
+  /* A desktop app, not a web page. */
+  user-select: none;
+  overflow: hidden;
+}
+
+/* The window is undecorated (tauri.conf.json app.windows[].decorations), so the
+   document is the whole frame: title bar on top, content filling the rest.
+
+   #app carries the layout and the background rather than <body>: under WebKitGTK
+   the root background does not reliably reach an undecorated window's surface,
+   which leaves the desktop showing through wherever no element paints. Painting
+   a real element avoids depending on that propagation. */
+#app {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  background: var(--bg);
+}

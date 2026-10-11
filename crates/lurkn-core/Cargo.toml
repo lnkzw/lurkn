@@ -1,0 +1,23 @@
+[package]
+name = "lurkn-core"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+
+# Pure domain crate: no IO, no tokio, no reqwest. See docs/architecture.md §1.
+[dependencies]
+# Highlight and ignore patterns. Pure, and linear-time: a pattern the reader
+# writes cannot be made to backtrack forever by a message someone else sends.
+regex.workspace = true
+serde.workspace = true
+serde_json.workspace = true
+specta.workspace = true
+thiserror.workspace = true
+time.workspace = true
+# Theme files. Parsing only; the shell reads them.
+toml.workspace = true
+url.workspace = true
+
+[lints]
+workspace = true

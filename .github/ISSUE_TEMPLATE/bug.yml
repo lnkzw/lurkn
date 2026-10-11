@@ -1,0 +1,43 @@
+name: Something does not work
+description: A bug, a crash, or Lurkn doing something it should not.
+labels: [bug]
+body:
+  - type: textarea
+    id: what
+    attributes:
+      label: What happened
+      description: What you did, what you expected, and what Lurkn did instead.
+    validations:
+      required: true
+  - type: input
+    id: version
+    attributes:
+      label: Lurkn version
+      description: Settings → Account, at the bottom.
+      placeholder: '0.1.0'
+    validations:
+      required: true
+  - type: dropdown
+    id: os
+    attributes:
+      label: System
+      options:
+        - Linux
+        - Windows
+        - macOS
+    validations:
+      required: true
+  - type: input
+    id: details
+    attributes:
+      label: System details
+      description: Distribution and desktop on Linux (e.g. Arch, Hyprland), version on Windows and macOS.
+  - type: textarea
+    id: log
+    attributes:
+      label: Log
+      description: |
+        Settings → Advanced → Show log, the lines around the problem. Tokens are
+        removed before anything is written, but read it over before posting —
+        it names the channels you opened.
+      render: text

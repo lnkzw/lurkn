@@ -1,0 +1,6 @@
+# Pinned so the build is reproducible and independent of the machine default.
+# 1.98.1 is the floor: specta 2.0.0-rc.25 uses fmt::from_fn, stabilised after 1.90.
+[toolchain]
+channel = "1.98.1"
+components = ["rustfmt", "clippy"]
+profile = "minimal"

@@ -1,0 +1,89 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+env:
+  CARGO_TERM_COLOR: always
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+
+      - name: Install Linux WebView dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libwebkit2gtk-4.1-dev librsvg2-dev libxdo-dev \
+            libayatana-appindicator3-dev build-essential
+
+      # Honours rust-toolchain.toml.
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: '. -> target'
+
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v5
+        with:
+          node-version: 24
+          cache: pnpm
+
+      - run: pnpm install --frozen-lockfile
+
+      - name: Rust format
+        run: cargo fmt --all -- --check
+
+      - name: Rust lint
+        run: cargo clippy --workspace --all-targets -- -D warnings
+
+      - name: Rust tests
+        run: cargo test --workspace
+
+      # cargo test regenerates bindings.ts; a diff means it was not committed.
+      - name: Generated bindings are up to date
+        run: git diff --exit-code -- src/lib/ipc/bindings.ts
+
+      - name: Frontend lint
+        run: pnpm lint
+
+      - name: Frontend types
+        run: pnpm check
+
+      - name: Frontend tests
+        run: pnpm test
+
+      # docs/architecture.md §11 — a disabled lint rule must not slip this through.
+      - name: No raw HTML injection
+        run: |
+          if grep -rn --include='*.svelte' --include='*.ts' -E '\{@html|innerHTML|outerHTML|insertAdjacentHTML' src/; then
+            echo "::error::raw HTML injection found in src/ (docs/architecture.md §11)"
+            exit 1
+          fi
+
+      - name: Release build
+        run: pnpm tauri build --no-bundle
+
+  # Lurkn is written on Linux; this is what keeps it building elsewhere. Rust
+  # only: the frontend is the same bundle everywhere and the job above checks it.
+  platforms:
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [windows-latest, macos-latest]
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v5
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: '. -> target'
+
+      - name: Rust lint
+        run: cargo clippy --workspace --all-targets -- -D warnings
+
+      - name: Rust tests
+        run: cargo test --workspace

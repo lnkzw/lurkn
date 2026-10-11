@@ -1,0 +1,101 @@
+name: Release
+
+# A tag like v0.2.0 builds every platform into one draft release. Publishing
+# the draft is a person's click, after trying a download or two: nothing
+# reaches anyone unseen. See docs/release.md.
+
+on:
+  push:
+    tags: ['v*']
+
+permissions:
+  contents: write
+
+env:
+  CARGO_TERM_COLOR: always
+
+jobs:
+  notes:
+    runs-on: ubuntu-latest
+    outputs:
+      body: ${{ steps.notes.outputs.body }}
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-node@v5
+        with:
+          node-version: 24
+
+      # A tag that disagrees with the files would ship a mislabelled build.
+      - name: The tag matches the version
+        run: node scripts/version.mjs --check "${GITHUB_REF_NAME#v}"
+
+      - id: notes
+        name: Release notes from CHANGELOG.md
+        run: |
+          {
+            echo 'body<<NOTES_EOF'
+            node scripts/version.mjs --notes "${GITHUB_REF_NAME#v}"
+            echo
+            echo '---'
+            echo 'First launch on macOS and Windows asks once, because Lurkn is not signed:'
+            echo 'see [Installing](https://github.com/${{ github.repository }}#installing).'
+            echo 'NOTES_EOF'
+          } >> "$GITHUB_OUTPUT"
+
+  build:
+    needs: notes
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          # The oldest supported Ubuntu: an AppImage runs on systems at least as
+          # new as the one it was built on.
+          - platform: ubuntu-22.04
+            args: ''
+          - platform: windows-latest
+            args: ''
+          # One download for every Mac, Apple Silicon and Intel.
+          - platform: macos-latest
+            args: '--target universal-apple-darwin'
+    runs-on: ${{ matrix.platform }}
+    steps:
+      - uses: actions/checkout@v5
+
+      - name: Linux WebView dependencies
+        if: startsWith(matrix.platform, 'ubuntu')
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libwebkit2gtk-4.1-dev librsvg2-dev libxdo-dev \
+            libayatana-appindicator3-dev patchelf build-essential
+
+      # Honours rust-toolchain.toml.
+      - uses: dtolnay/rust-toolchain@stable
+
+      # Added inside the repository, so they land on the pinned toolchain
+      # rather than on whatever `stable` the step above installed.
+      - name: Both Mac architectures
+        if: startsWith(matrix.platform, 'macos')
+        run: rustup target add aarch64-apple-darwin x86_64-apple-darwin
+
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: '. -> target'
+          key: release
+
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v5
+        with:
+          node-version: 24
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+
+      - uses: tauri-apps/tauri-action@v0
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          tagName: ${{ github.ref_name }}
+          releaseName: Lurkn ${{ github.ref_name }}
+          releaseBody: ${{ needs.notes.outputs.body }}
+          releaseDraft: true
+          prerelease: false
+          args: ${{ matrix.args }}

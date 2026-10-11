@@ -1,0 +1,11 @@
+name: An idea
+description: Something Lurkn could do, or do differently.
+labels: [idea]
+body:
+  - type: textarea
+    id: what
+    attributes:
+      label: What you would like
+      description: What you are trying to do, and where Lurkn gets in the way. How another client or Twitch handles it helps, if they do.
+    validations:
+      required: true

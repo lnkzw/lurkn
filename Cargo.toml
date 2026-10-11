@@ -1,0 +1,64 @@
+[workspace]
+resolver = "2"
+members = ["crates/*", "src-tauri"]
+
+[workspace.package]
+version = "0.1.0"
+edition = "2021"
+rust-version = "1.98"
+license = "MIT"
+repository = "https://github.com/lnkzw/lurkn"
+
+[workspace.dependencies]
+# internal
+lurkn-core = { path = "crates/lurkn-core" }
+lurkn-auth = { path = "crates/lurkn-auth" }
+lurkn-twitch = { path = "crates/lurkn-twitch" }
+lurkn-chat = { path = "crates/lurkn-chat" }
+lurkn-emotes = { path = "crates/lurkn-emotes" }
+lurkn-browser = { path = "crates/lurkn-browser" }
+lurkn-store = { path = "crates/lurkn-store" }
+lurkn-watch = { path = "crates/lurkn-watch" }
+
+# external
+anyhow = "1"
+async-trait = "0.1"
+getrandom = "0.3"
+indexmap = { version = "2", features = ["serde"] }
+keyring = "4"
+regex = "1"
+reqwest = { version = "0.13", default-features = false, features = ["json", "form", "query", "charset", "http2", "gzip", "rustls", "system-proxy"] }
+rusqlite = { version = "0.40", features = ["bundled", "time"] }
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+specta = { version = "=2.0.0-rc.25", features = ["derive", "time", "url"] }
+# The platform's own data and log folders, so Lurkn needs no HOME on Windows
+# and lands where macOS expects. Already in the tree through Tauri.
+dirs = "6"
+thiserror = "2"
+time = { version = "0.3", features = ["serde", "formatting", "parsing", "macros"] }
+tokio = { version = "1", features = ["rt-multi-thread", "macros", "sync", "time"] }
+tokio-tungstenite = { version = "0.30", features = ["rustls-tls-webpki-roots"] }
+toml = "0.9"
+tracing = "0.1"
+url = { version = "2", features = ["serde"] }
+
+# dev
+tokio-test = "0.4"
+wiremock = "0.6"
+
+[workspace.lints.rust]
+unsafe_code = "forbid"
+missing_debug_implementations = "warn"
+
+[workspace.lints.clippy]
+all = { level = "warn", priority = -1 }
+todo = "warn"
+unwrap_used = "warn"
+expect_used = "warn"
+panic = "warn"
+
+[profile.dev]
+# Tauri + Svelte HMR is fine, but a debug WebKit link is slow. Keep deps optimized.
+[profile.dev.package."*"]
+opt-level = 2
