@@ -76,7 +76,14 @@ function bump(version) {
   const changelog = read('CHANGELOG.md');
   if (!changelog.includes('## [Unreleased]')) fail('CHANGELOG.md has no [Unreleased] section');
   if (changelog.includes(`## [${version}]`)) fail(`CHANGELOG.md already has ${version}`);
-  const today = new Date().toISOString().slice(0, 10);
+  // The releaser's calendar day, not UTC's: past midnight in Europe, UTC is
+  // still on yesterday.
+  const now = new Date();
+  const today = [
+    now.getFullYear(),
+    String(now.getMonth() + 1).padStart(2, '0'),
+    String(now.getDate()).padStart(2, '0'),
+  ].join('-');
   writeFileSync(
     path('CHANGELOG.md'),
     changelog.replace('## [Unreleased]', `## [Unreleased]\n\n## [${version}] - ${today}`),

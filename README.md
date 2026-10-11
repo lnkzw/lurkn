@@ -22,13 +22,13 @@ release brought.
 
 Every release is on the [Releases page](https://github.com/lnkzw/lurkn/releases).
 
-| System | Download | Or with |
-| --- | --- | --- |
-| Linux | `.AppImage` (any distribution), `.deb` (Debian, Ubuntu), `.rpm` (Fedora, openSUSE) | AUR: `lurkn-bin` |
-| Windows 10 and 11 | `…_x64-setup.exe` | `scoop` / `winget` |
-| macOS 12 and later | `….dmg` (Apple Silicon and Intel) | `brew install --cask lnkzw/lurkn/lurkn` |
+| System | Download |
+| --- | --- |
+| Linux | `.AppImage` (any distribution), `.deb` (Debian, Ubuntu), `.rpm` (Fedora, openSUSE) |
+| Windows 10 and 11 | `…_x64-setup.exe` |
+| macOS 12 and later | `….dmg` (Apple Silicon and Intel) |
 
-<!-- Package manager lines go live as each is set up; see docs/release.md. -->
+<!-- AUR, Scoop, winget and Homebrew are added here as each goes live; see docs/release.md §4. -->
 
 ### First launch on macOS and Windows
 

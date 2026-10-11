@@ -10,6 +10,8 @@ versions follow [Semantic Versioning](https://semver.org/) — while Lurkn is at
 
 ## [Unreleased]
 
+## [0.1.0] - 2026-10-12
+
 The first public release.
 
 ### Twitch
