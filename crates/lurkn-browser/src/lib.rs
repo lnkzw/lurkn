@@ -5,6 +5,7 @@
 pub mod desktop;
 pub mod detect;
 pub mod family;
+pub mod host;
 pub mod launch;
 
 pub use detect::{installed, Browser, BrowserInfo};

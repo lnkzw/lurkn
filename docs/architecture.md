@@ -432,9 +432,18 @@ tokens are rendered as `<a>` only after Rust confirms the scheme is `http` or
 pub trait BrowserLauncher: Send + Sync { fn open_url(&self, url: &Url) -> Result<()>; }
 ```
 
-The default is the system's own handler through Tauri's opener plugin
-(`xdg-open` on Linux, `open` on macOS, the shell on Windows), and it is the
-fallback for everything below.
+The default is the system's own handler: `xdg-open` on Linux, started by
+`lurkn-browser` itself, and Tauri's opener plugin elsewhere (`open` on macOS,
+the shell on Windows). It is the fallback for everything below.
+
+Everything Lurkn starts — a browser, `xdg-open`, `xdg-mime` — goes through
+`lurkn_browser::host::command`. Run from an AppImage, Lurkn's environment
+points the library path, GTK's module paths and more into the mounted image;
+a browser that inherited it would load Lurkn's bundled GTK and GLib and die
+before showing a window. The command drops whatever points into the image,
+and the variables the AppImage's GTK hook forces (`GDK_BACKEND`,
+`GTK_THEME`). Outside an AppImage it changes nothing. That is also why Linux
+does not use the opener plugin: it would pass the environment on unchanged.
 
 URL construction is a pure function in `lurkn-core` (`twitch_channel_url(login)
 -> Url`) over a validated login charset, so no chat-supplied string can reach

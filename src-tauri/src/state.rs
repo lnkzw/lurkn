@@ -394,11 +394,20 @@ impl AppState {
         let url = url::Url::from_directory_path(path)
             .map_err(|()| "That path cannot be opened.".to_owned())?;
         // Not the BrowserLauncher: that deliberately refuses file:// URLs.
-        use tauri_plugin_opener::OpenerExt;
-        self.opener
-            .opener()
-            .open_url(url.as_str(), None::<&str>)
-            .map_err(|e| e.to_string())
+        #[cfg(target_os = "linux")]
+        {
+            lurkn_browser::launch::spawn(&lurkn_browser::launch::for_desktop(url.as_str()))
+                .map_err(|e| e.to_string())
+        }
+
+        #[cfg(not(target_os = "linux"))]
+        {
+            use tauri_plugin_opener::OpenerExt;
+            self.opener
+                .opener()
+                .open_url(url.as_str(), None::<&str>)
+                .map_err(|e| e.to_string())
+        }
     }
 
     /// The shared HTTP client, for the few callers outside the Twitch services.

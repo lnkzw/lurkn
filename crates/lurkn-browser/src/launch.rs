@@ -161,6 +161,19 @@ fn split_command(line: &str) -> Vec<String> {
     args
 }
 
+/// Hand a URL or a folder to the desktop, the way a link opens anywhere else.
+///
+/// `xdg-open` started directly rather than through the opener plugin, so it
+/// gets the environment [`spawn`] cleans: from an AppImage, the plugin would
+/// pass the image's library path on to whatever browser or file manager
+/// `xdg-open` picks.
+pub fn for_desktop(target: &str) -> Launch {
+    Launch {
+        program: "xdg-open".to_owned(),
+        args: vec![target.to_owned()],
+    }
+}
+
 /// Start a program without waiting for it.
 ///
 /// The child is detached from Lurkn's own streams: a browser writing to stderr
@@ -168,9 +181,10 @@ fn split_command(line: &str) -> Vec<String> {
 /// steal it. The exit status is collected on a thread purely so the process
 /// table does not fill with zombies over a long session.
 pub fn spawn(launch: &Launch) -> Result<()> {
-    use std::process::{Command, Stdio};
+    use std::process::Stdio;
 
-    let child = Command::new(&launch.program)
+    // Without what an AppImage points into itself; see `crate::host`.
+    let child = crate::host::command(&launch.program)
         .args(&launch.args)
         .stdin(Stdio::null())
         .stdout(Stdio::null())
