@@ -92,6 +92,19 @@ jobs:
           cache: pnpm
       - run: pnpm install --frozen-lockfile
 
+      # The AppImage must not carry its own libwayland: the system's Mesa needs
+      # the system's, and with Ubuntu 22.04's loaded first EGL fails and the
+      # window stays black. Leaving libraries out needs a newer linuxdeploy than
+      # the one Tauri downloads; the CLI uses whatever is in its cache folder.
+      - name: linuxdeploy that can leave libraries out
+        if: startsWith(matrix.platform, 'ubuntu')
+        run: |
+          mkdir -p ~/.cache/tauri
+          curl -sSfL -o ~/.cache/tauri/linuxdeploy-x86_64.AppImage \
+            https://github.com/linuxdeploy/linuxdeploy/releases/download/1-alpha-20251107-1/linuxdeploy-x86_64.AppImage
+          echo "c20cd71e3a4e3b80c3483cef793cda3f4e990aca14014d23c544ca3ce1270b4d  $HOME/.cache/tauri/linuxdeploy-x86_64.AppImage" | sha256sum -c
+          chmod +x ~/.cache/tauri/linuxdeploy-x86_64.AppImage
+
       # tauri.release.conf.json switches on the signed update files, which need
       # the private key; a build from source leaves them out and needs no key.
       # The action merges each build's entry into the release's latest.json,
@@ -101,6 +114,7 @@ jobs:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
           TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
+          LINUXDEPLOY_EXCLUDED_LIBRARIES: 'libwayland-*'
         with:
           tagName: ${{ github.ref_name }}
           releaseName: Lurkn ${{ github.ref_name }}
@@ -109,6 +123,16 @@ jobs:
           prerelease: false
           updaterJsonPreferNsis: true
           args: --config src-tauri/tauri.release.conf.json ${{ matrix.args }}
+
+      - name: The AppImage leaves libwayland to the system
+        if: startsWith(matrix.platform, 'ubuntu')
+        run: |
+          cd "$RUNNER_TEMP"
+          "$GITHUB_WORKSPACE"/target/release/bundle/appimage/*.AppImage --appimage-extract 'usr/lib/libwayland*' > /dev/null
+          if compgen -G 'squashfs-root/usr/lib/libwayland*' > /dev/null; then
+            echo "::error::the AppImage bundles libwayland; EGL fails on current Mesa"
+            exit 1
+          fi
 
   # The three builds write latest.json one after another and can overwrite each
   # other's entry. A platform missing from it would never be offered the

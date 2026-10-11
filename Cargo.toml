@@ -39,6 +39,9 @@ specta = { version = "=2.0.0-rc.25", features = ["derive", "time", "url"] }
 dirs = "6"
 thiserror = "2"
 time = { version = "0.3", features = ["serde", "formatting", "parsing", "macros"] }
+# Named so the app can choose rustls' backend for the whole process; see
+# install_tls_provider in src-tauri/src/lib.rs.
+rustls = { version = "0.23", default-features = false, features = ["aws-lc-rs", "std"] }
 tokio = { version = "1", features = ["rt-multi-thread", "macros", "sync", "time"] }
 tokio-tungstenite = { version = "0.30", features = ["rustls-tls-webpki-roots"] }
 toml = "0.9"

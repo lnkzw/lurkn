@@ -171,8 +171,20 @@ fn specta_builder() -> Builder<tauri::Wry> {
 #[cfg(any(debug_assertions, test))]
 const BINDINGS_PATH: &str = "../src/lib/ipc/bindings.ts";
 
+/// Choose rustls' crypto backend for the whole process, before anything
+/// connects.
+///
+/// Two are compiled in — reqwest brings aws-lc-rs, the updater plugin ring —
+/// and with both, rustls will not pick one by itself: any client built without
+/// naming one panics. The chat socket is such a client.
+fn install_tls_provider() {
+    // An error only means a provider is in place already, which is as good.
+    let _ = rustls::crypto::aws_lc_rs::default_provider().install_default();
+}
+
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
+    install_tls_provider();
     let _log_guard = init_logging();
     let builder = specta_builder();
 
@@ -327,6 +339,23 @@ mod tests {
     /// Running it as a test means `cargo test` keeps the TypeScript in step
     /// without launching a window, and CI can fail on an uncommitted diff.
     /// See `docs/architecture.md` §8.2.
+    /// The chat socket builds its TLS settings without naming a backend. With
+    /// two compiled in that panics unless the process chose one first; with one
+    /// chosen, a server that hangs up is an ordinary error.
+    #[tokio::test]
+    async fn the_chat_socket_has_a_tls_backend() {
+        install_tls_provider();
+
+        let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
+        let port = listener.local_addr().unwrap().port();
+        tokio::spawn(async move {
+            let _ = listener.accept().await;
+        });
+
+        let result = tokio_tungstenite::connect_async(format!("wss://127.0.0.1:{port}")).await;
+        assert!(result.is_err());
+    }
+
     #[test]
     fn export_typescript_bindings() {
         use specta_typescript::Typescript;
