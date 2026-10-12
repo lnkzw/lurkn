@@ -417,7 +417,11 @@ mod tests {
         assert_eq!(plain.program, "/usr/bin/open");
         assert_eq!(
             plain.args,
-            ["-a", "/Applications/Test Browser.app", "https://www.twitch.tv/forsen"]
+            [
+                "-a",
+                "/Applications/Test Browser.app",
+                "https://www.twitch.tv/forsen"
+            ]
         );
 
         let app = for_browser(&chrome, &url(), LaunchMode::App, false).unwrap();

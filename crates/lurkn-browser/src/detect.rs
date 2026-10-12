@@ -262,7 +262,10 @@ mod tests {
         assert_eq!(browser.id, "firefox.desktop");
         assert_eq!(browser.name, "Test Browser");
         assert_eq!(browser.family, Family::Firefox);
-        assert_eq!(browser.start, Start::Command(vec!["/usr/bin/firefox".into()]));
+        assert_eq!(
+            browser.start,
+            Start::Command(vec!["/usr/bin/firefox".into()])
+        );
         assert!(browser.info(None).supports_kiosk);
         assert!(!browser.info(None).supports_app);
         assert!(!browser.info(None).is_default);

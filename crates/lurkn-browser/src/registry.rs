@@ -65,7 +65,10 @@ pub fn command_argv(command: &str, exists: &dyn Fn(&str) -> bool) -> Option<Vec<
 /// The installed browser whose program is `program`, compared the way Windows
 /// compares paths: without case, either slash.
 pub fn by_program(installed: &[Browser], program: &str) -> Option<String> {
-    let same = |a: &str, b: &str| a.replace('/', "\\").eq_ignore_ascii_case(&b.replace('/', "\\"));
+    let same = |a: &str, b: &str| {
+        a.replace('/', "\\")
+            .eq_ignore_ascii_case(&b.replace('/', "\\"))
+    };
     installed
         .iter()
         .find(|browser| match &browser.start {
@@ -93,7 +96,10 @@ mod system {
         let roots: [(&Key, &str); 3] = [
             (CURRENT_USER, CLIENTS),
             (LOCAL_MACHINE, CLIENTS),
-            (LOCAL_MACHINE, r"Software\WOW6432Node\Clients\StartMenuInternet"),
+            (
+                LOCAL_MACHINE,
+                r"Software\WOW6432Node\Clients\StartMenuInternet",
+            ),
         ];
 
         let mut found: Vec<Browser> = Vec::new();
@@ -220,7 +226,11 @@ mod tests {
         .unwrap();
         assert_eq!(
             argv,
-            [r"C:\Program Files\LibreWolf\librewolf.exe", "-osint", "-url"]
+            [
+                r"C:\Program Files\LibreWolf\librewolf.exe",
+                "-osint",
+                "-url"
+            ]
         );
     }
 
@@ -232,10 +242,20 @@ mod tests {
     #[test]
     fn the_default_is_found_by_its_program() {
         let browsers = [
-            browser_from("Firefox-308046B0AF4A39CB", "Firefox", r#""C:\Firefox\firefox.exe""#, &present)
-                .unwrap(),
-            browser_from("Google Chrome", "Google Chrome", &format!(r#""{CHROME}""#), &present)
-                .unwrap(),
+            browser_from(
+                "Firefox-308046B0AF4A39CB",
+                "Firefox",
+                r#""C:\Firefox\firefox.exe""#,
+                &present,
+            )
+            .unwrap(),
+            browser_from(
+                "Google Chrome",
+                "Google Chrome",
+                &format!(r#""{CHROME}""#),
+                &present,
+            )
+            .unwrap(),
         ];
         assert_eq!(
             by_program(&browsers, &CHROME.to_lowercase()),

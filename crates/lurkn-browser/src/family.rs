@@ -124,7 +124,10 @@ mod tests {
     fn recognises_browsers_on_windows_and_macos() {
         let cases: [(&[&str], Family); 6] = [
             (&[r"C:\Program Files\Zen Browser\zen.exe"], Family::Firefox),
-            (&[r"C:\Program Files\LibreWolf\librewolf.exe"], Family::Firefox),
+            (
+                &[r"C:\Program Files\LibreWolf\librewolf.exe"],
+                Family::Firefox,
+            ),
             (
                 &[r"C:\Program Files (x86)\Microsoft\Edge\Application\msedge.exe"],
                 Family::Chromium,
@@ -137,7 +140,10 @@ mod tests {
                 &["/Applications/Zen.app", "app.zen-browser.zen"],
                 Family::Firefox,
             ),
-            (&["/Applications/Safari.app", "com.apple.Safari"], Family::Other),
+            (
+                &["/Applications/Safari.app", "com.apple.Safari"],
+                Family::Other,
+            ),
         ];
         for (line, family) in cases {
             let argv: Vec<String> = line.iter().map(|a| (*a).to_owned()).collect();
