@@ -91,7 +91,7 @@ pub fn classify(argv: &[String]) -> Family {
 }
 
 fn basename(path: &str) -> String {
-    path.rsplit('/')
+    path.rsplit(['/', '\\'])
         .next()
         .unwrap_or(path)
         .trim_end_matches(".exe")
@@ -116,6 +116,32 @@ mod tests {
             "/opt/zen/zen",
         ] {
             assert_eq!(classify(&argv(line)), Family::Firefox, "{line}");
+        }
+    }
+
+    /// A Windows program path, and a Mac bundle with its identifier.
+    #[test]
+    fn recognises_browsers_on_windows_and_macos() {
+        let cases: [(&[&str], Family); 6] = [
+            (&[r"C:\Program Files\Zen Browser\zen.exe"], Family::Firefox),
+            (&[r"C:\Program Files\LibreWolf\librewolf.exe"], Family::Firefox),
+            (
+                &[r"C:\Program Files (x86)\Microsoft\Edge\Application\msedge.exe"],
+                Family::Chromium,
+            ),
+            (
+                &["/Applications/Google Chrome.app", "com.google.Chrome"],
+                Family::Chromium,
+            ),
+            (
+                &["/Applications/Zen.app", "app.zen-browser.zen"],
+                Family::Firefox,
+            ),
+            (&["/Applications/Safari.app", "com.apple.Safari"], Family::Other),
+        ];
+        for (line, family) in cases {
+            let argv: Vec<String> = line.iter().map(|a| (*a).to_owned()).collect();
+            assert_eq!(classify(&argv), family, "{line:?}");
         }
     }
 

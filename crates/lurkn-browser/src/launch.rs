@@ -8,7 +8,7 @@ use lurkn_core::LaunchMode;
 use url::Url;
 
 use crate::desktop;
-use crate::detect::Browser;
+use crate::detect::{Browser, Start};
 use crate::family::Family;
 use crate::{BrowserError, Result};
 
@@ -46,34 +46,63 @@ pub fn for_browser(
     wanted: LaunchMode,
     new_window: bool,
 ) -> Result<Launch> {
-    let mut argv = browser.argv.clone();
-    if argv.is_empty() {
-        return Err(BrowserError::LaunchFailed {
-            detail: format!("{} has no command to run", browser.name),
-        });
-    }
-
-    let program = argv.remove(0);
+    let mut extra = Vec::new();
     match effective_mode(browser.family, wanted) {
         // Chromium wants the URL inside the flag; a separate argument opens an
         // ordinary window instead.
-        LaunchMode::App => argv.push(format!("--app={url}")),
+        LaunchMode::App => extra.push(format!("--app={url}")),
         LaunchMode::Kiosk => {
-            argv.push("--kiosk".to_owned());
-            argv.push(url.to_string());
+            extra.push("--kiosk".to_owned());
+            extra.push(url.to_string());
         }
         LaunchMode::Normal => {
             if new_window && browser.family.supports_new_window() {
-                argv.push("--new-window".to_owned());
+                extra.push("--new-window".to_owned());
             }
-            argv.push(url.to_string());
+            extra.push(url.to_string());
         }
     }
 
-    Ok(Launch {
-        program,
-        args: argv,
-    })
+    match &browser.start {
+        Start::Command(argv) => {
+            let Some((program, own)) = argv.split_first() else {
+                return Err(BrowserError::LaunchFailed {
+                    detail: format!("{} has no command to run", browser.name),
+                });
+            };
+            Ok(Launch {
+                program: program.clone(),
+                args: own.iter().cloned().chain(extra).collect(),
+            })
+        }
+        Start::Bundle(app) => Ok(for_bundle(app, url, extra)),
+    }
+}
+
+/// A Mac application, started by LaunchServices through `open` rather than by
+/// running the program inside the bundle. A browser started as Lurkn's child
+/// would count Lurkn as the app responsible for it, and macOS would ask for
+/// camera or microphone access in Lurkn's name for as long as it ran.
+///
+/// A URL alone travels as an Apple event, which every browser takes and which
+/// reaches a copy that is already running. Flags only reach a new process, so
+/// `-n` starts one; Chromium and Firefox hand the request to the copy already
+/// running and exit.
+fn for_bundle(app: &str, url: &Url, extra: Vec<String>) -> Launch {
+    let plain = matches!(extra.as_slice(), [only] if only == url.as_str());
+    let args = if plain {
+        vec!["-a".to_owned(), app.to_owned(), url.to_string()]
+    } else {
+        ["-n", "-a", app, "--args"]
+            .into_iter()
+            .map(str::to_owned)
+            .chain(extra)
+            .collect()
+    };
+    Launch {
+        program: "/usr/bin/open".to_owned(),
+        args,
+    }
 }
 
 /// Build the command line for a user-supplied command.
@@ -83,7 +112,12 @@ pub fn for_browser(
 pub fn for_command(line: &str, url: &Url) -> Result<Launch> {
     // Field codes are meaningful here, so the desktop parser's stripping is not
     // wanted: split on the same quoting rules, then substitute.
-    let mut argv = split_command(line);
+    let style = if cfg!(windows) {
+        Quoting::Windows
+    } else {
+        Quoting::Unix
+    };
+    let mut argv = split_command(line, style);
     argv.retain(|a| !a.is_empty());
 
     if argv.is_empty() {
@@ -116,11 +150,23 @@ pub fn for_command(line: &str, url: &Url) -> Result<Launch> {
     })
 }
 
+/// How a command line marks what belongs together.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum Quoting {
+    /// Single and double quotes, and a backslash before any character.
+    Unix,
+    /// Double quotes only. A backslash is the path separator, and an
+    /// apostrophe is a letter in a name like `O'Brien`.
+    Windows,
+}
+
 /// Split a command line into arguments, honouring quotes but expanding nothing.
 ///
-/// No globbing, no variable expansion, no operators: `~`, `$HOME`, `&&` and `|`
-/// are literal text here. Anything that needs them can point at a script.
-fn split_command(line: &str) -> Vec<String> {
+/// No globbing, no variable expansion, no operators: `~`, `$HOME`, `%APPDATA%`,
+/// `&&` and `|` are literal text here. Anything that needs them can point at a
+/// script.
+pub fn split_command(line: &str, style: Quoting) -> Vec<String> {
+    let unix = style == Quoting::Unix;
     let mut args = Vec::new();
     let mut current = String::new();
     let mut started = false;
@@ -129,14 +175,18 @@ fn split_command(line: &str) -> Vec<String> {
 
     while let Some(c) = chars.next() {
         match c {
-            '"' | '\'' if quote.is_none() => {
+            '"' if quote.is_none() => {
+                quote = Some(c);
+                started = true;
+            }
+            '\'' if unix && quote.is_none() => {
                 quote = Some(c);
                 started = true;
             }
             c if Some(c) == quote => {
                 quote = None;
             }
-            '\\' if quote != Some('\'') => {
+            '\\' if unix && quote != Some('\'') => {
                 if let Some(next) = chars.next() {
                     current.push(next);
                     started = true;
@@ -184,11 +234,23 @@ pub fn spawn(launch: &Launch) -> Result<()> {
     use std::process::Stdio;
 
     // Without what an AppImage points into itself; see `crate::host`.
-    let child = crate::host::command(&launch.program)
+    let mut command = crate::host::command(&launch.program);
+    command
         .args(&launch.args)
         .stdin(Stdio::null())
         .stdout(Stdio::null())
-        .stderr(Stdio::null())
+        .stderr(Stdio::null());
+
+    // A console program started from a windowed one gets a console window of
+    // its own, which would flash up for nothing: its output is discarded.
+    #[cfg(windows)]
+    {
+        use std::os::windows::process::CommandExt;
+        const CREATE_NO_WINDOW: u32 = 0x0800_0000;
+        command.creation_flags(CREATE_NO_WINDOW);
+    }
+
+    let child = command
         .spawn()
         .map_err(|error| BrowserError::LaunchFailed {
             detail: format!("{}: {error}", launch.program),
@@ -222,7 +284,16 @@ mod tests {
             id: "test.desktop".into(),
             name: "Test".into(),
             family,
-            argv: argv.iter().map(|a| (*a).to_owned()).collect(),
+            start: Start::Command(argv.iter().map(|a| (*a).to_owned()).collect()),
+        }
+    }
+
+    fn bundle(family: Family) -> Browser {
+        Browser {
+            id: "com.example.browser".into(),
+            name: "Test".into(),
+            family,
+            start: Start::Bundle("/Applications/Test Browser.app".into()),
         }
     }
 
@@ -336,6 +407,54 @@ mod tests {
         assert_eq!(launch.args, ["https://www.twitch.tv/forsen"]);
     }
 
+    /// A plain URL goes to the copy already running; anything with flags needs
+    /// a process of its own to read them.
+    #[test]
+    fn a_mac_app_gets_flags_only_through_a_new_process() {
+        let chrome = bundle(Family::Chromium);
+
+        let plain = for_browser(&chrome, &url(), LaunchMode::Normal, false).unwrap();
+        assert_eq!(plain.program, "/usr/bin/open");
+        assert_eq!(
+            plain.args,
+            ["-a", "/Applications/Test Browser.app", "https://www.twitch.tv/forsen"]
+        );
+
+        let app = for_browser(&chrome, &url(), LaunchMode::App, false).unwrap();
+        assert_eq!(
+            app.args,
+            [
+                "-n",
+                "-a",
+                "/Applications/Test Browser.app",
+                "--args",
+                "--app=https://www.twitch.tv/forsen"
+            ]
+        );
+
+        let window = for_browser(&chrome, &url(), LaunchMode::Normal, true).unwrap();
+        assert_eq!(
+            window.args,
+            [
+                "-n",
+                "-a",
+                "/Applications/Test Browser.app",
+                "--args",
+                "--new-window",
+                "https://www.twitch.tv/forsen"
+            ]
+        );
+    }
+
+    /// Safari takes no flags, so it is never started a second time.
+    #[test]
+    fn an_unknown_mac_app_only_ever_gets_the_url() {
+        for wanted in [LaunchMode::App, LaunchMode::Kiosk, LaunchMode::Normal] {
+            let launch = for_browser(&bundle(Family::Other), &url(), wanted, true).unwrap();
+            assert_eq!(launch.args[0], "-a", "{wanted:?}");
+        }
+    }
+
     #[test]
     fn a_command_substitutes_the_placeholder() {
         let launch = for_command("mpv --no-border %u", &url()).unwrap();
@@ -367,11 +486,44 @@ mod tests {
     /// argument of one program rather than starting a second command.
     #[test]
     fn shell_operators_are_not_operators() {
-        let launch = for_command("player 'a; rm -rf ~ && echo b' %u", &url()).unwrap();
+        let launch = for_command(r#"player "a; rm -rf ~ && echo b" %u"#, &url()).unwrap();
         assert_eq!(launch.program, "player");
         assert_eq!(
             launch.args,
             ["a; rm -rf ~ && echo b", "https://www.twitch.tv/forsen"]
+        );
+    }
+
+    #[test]
+    fn windows_paths_keep_their_backslashes() {
+        assert_eq!(
+            split_command(
+                r#""C:\Program Files\LibreWolf\librewolf.exe" --kiosk %u"#,
+                Quoting::Windows
+            ),
+            [r"C:\Program Files\LibreWolf\librewolf.exe", "--kiosk", "%u"]
+        );
+        assert_eq!(
+            split_command(r"\\server\share\play.exe", Quoting::Windows),
+            [r"\\server\share\play.exe"]
+        );
+    }
+
+    /// An apostrophe in a Windows path is a letter, not the start of a quote
+    /// that would swallow the rest of the line.
+    #[test]
+    fn windows_has_no_single_quotes() {
+        assert_eq!(
+            split_command(r"C:\Users\O'Brien\mpv.exe %u", Quoting::Windows),
+            [r"C:\Users\O'Brien\mpv.exe", "%u"]
+        );
+    }
+
+    #[test]
+    fn unix_backslashes_escape() {
+        assert_eq!(
+            split_command(r"/opt/My\ Player/play %u", Quoting::Unix),
+            ["/opt/My Player/play", "%u"]
         );
     }
 

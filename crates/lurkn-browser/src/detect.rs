@@ -1,13 +1,15 @@
 //! Finding the browsers installed on this machine.
 //!
-//! The desktop tells us: an application that opens web links says so in its
-//! desktop entry's `MimeType`. That is the same list the system's own "open
-//! with" dialog is built from, so what Lurkn offers matches what the user
-//! expects to be there.
+//! The system tells us, in the place its own "default browser" choice is built
+//! from, so what Lurkn offers matches what the user expects to be there:
+//!
+//! - Linux: desktop entries whose `MimeType` claims web links (here);
+//! - Windows: the browsers registered under `StartMenuInternet` (`crate::registry`);
+//! - macOS: applications whose `Info.plist` claims `https` (`crate::bundles`).
 //!
 //! Nothing here is Lurkn-specific and nothing is hard-coded per browser. A
-//! browser that is installed but ships no desktop entry will not be listed —
-//! the custom command exists for exactly that case.
+//! browser the system does not know about will not be listed — the custom
+//! command exists for exactly that case.
 
 use std::path::{Path, PathBuf};
 
@@ -20,23 +22,36 @@ use crate::family::{classify, Family};
 /// An installed browser Lurkn can launch.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Browser {
-    /// The desktop entry's file name, e.g. `firefox.desktop`. Stable across
-    /// restarts, which a path or an index would not be.
+    /// Stable across restarts, which a path or an index would not be: the
+    /// desktop entry's file name (`firefox.desktop`), the registered name on
+    /// Windows (`Google Chrome`), the bundle identifier on macOS
+    /// (`org.mozilla.firefox`).
     pub id: String,
     pub name: String,
     pub family: Family,
-    /// The command from the entry, with the desktop's field codes removed.
-    pub argv: Vec<String>,
+    pub start: Start,
+}
+
+/// How a browser is started.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum Start {
+    /// A program and the arguments it always gets; flags and the URL follow.
+    /// On Linux the desktop's field codes are already removed.
+    Command(Vec<String>),
+    /// A macOS application bundle, by path, started through `open`.
+    Bundle(String),
 }
 
 impl Browser {
-    pub fn info(&self) -> BrowserInfo {
+    /// `default_id` is the system default's id, if it is known.
+    pub fn info(&self, default_id: Option<&str>) -> BrowserInfo {
         BrowserInfo {
             id: self.id.clone(),
             name: self.name.clone(),
             family: self.family,
             supports_app: self.family.supports_app(),
             supports_kiosk: self.family.supports_kiosk(),
+            is_default: default_id == Some(self.id.as_str()),
         }
     }
 }
@@ -51,6 +66,57 @@ pub struct BrowserInfo {
     pub family: Family,
     pub supports_app: bool,
     pub supports_kiosk: bool,
+    /// The one the system opens web links with.
+    pub is_default: bool,
+}
+
+/// Every browser the system knows of, sorted by name.
+pub fn installed() -> Vec<Browser> {
+    #[cfg(windows)]
+    let mut found = crate::registry::installed();
+    #[cfg(target_os = "macos")]
+    let mut found = crate::bundles::installed();
+    #[cfg(not(any(windows, target_os = "macos")))]
+    let mut found = desktop_entries();
+
+    found.sort_by_key(|b| b.name.to_lowercase());
+    found
+}
+
+/// The id of the system's default browser, if it is one of `installed`.
+///
+/// Used to honour app and kiosk mode for the "system default" choice, which
+/// otherwise could not take flags at all, and to tell the settings screen
+/// which browser that is.
+pub fn default_id(installed: &[Browser]) -> Option<String> {
+    #[cfg(windows)]
+    {
+        crate::registry::default_id(installed)
+    }
+    #[cfg(target_os = "macos")]
+    {
+        crate::bundles::default_id(installed)
+    }
+    #[cfg(not(any(windows, target_os = "macos")))]
+    {
+        xdg_default(installed)
+    }
+}
+
+/// Asked of `xdg-mime` rather than guessed: it is what `xdg-open` itself goes by.
+#[cfg(not(any(windows, target_os = "macos")))]
+fn xdg_default(installed: &[Browser]) -> Option<String> {
+    let output = crate::host::command("xdg-mime")
+        .args(["query", "default", "x-scheme-handler/https"])
+        .stdin(std::process::Stdio::null())
+        .stderr(std::process::Stdio::null())
+        .output()
+        .ok()?;
+    if !output.status.success() {
+        return None;
+    }
+    let id = String::from_utf8(output.stdout).ok()?.trim().to_owned();
+    installed.iter().any(|b| b.id == id).then_some(id)
 }
 
 /// Build a browser from a parsed entry, or `None` if it is not one.
@@ -88,7 +154,7 @@ pub fn browser_from(
             entry.name.clone()
         },
         family: classify(&argv),
-        argv,
+        start: Start::Command(argv),
     })
 }
 
@@ -117,20 +183,24 @@ pub fn application_dirs() -> Vec<PathBuf> {
     dirs
 }
 
-/// Whether a program exists: an absolute path as written, a bare name on PATH.
+/// Whether a program exists: a path as written, a bare name on PATH.
 pub fn program_exists(program: &str) -> bool {
-    if program.contains('/') {
-        return Path::new(program).exists();
+    if program.contains('/') || (cfg!(windows) && program.contains('\\')) {
+        return Path::new(program).is_file();
     }
 
     let Some(path) = std::env::var_os("PATH") else {
         return false;
     };
-    std::env::split_paths(&path).any(|dir| dir.join(program).exists())
+    std::env::split_paths(&path).any(|dir| {
+        let file = dir.join(program);
+        file.is_file() || (cfg!(windows) && dir.join(format!("{program}.exe")).is_file())
+    })
 }
 
-/// Every browser registered as a web-link handler, sorted by name.
-pub fn installed() -> Vec<Browser> {
+/// Every desktop entry that is a browser. The first entry of a name wins.
+#[cfg(not(any(windows, target_os = "macos")))]
+fn desktop_entries() -> Vec<Browser> {
     let mut found: Vec<Browser> = Vec::new();
 
     for dir in application_dirs() {
@@ -160,7 +230,6 @@ pub fn installed() -> Vec<Browser> {
         }
     }
 
-    found.sort_by_key(|b| b.name.to_lowercase());
     found
 }
 
@@ -193,9 +262,11 @@ mod tests {
         assert_eq!(browser.id, "firefox.desktop");
         assert_eq!(browser.name, "Test Browser");
         assert_eq!(browser.family, Family::Firefox);
-        assert_eq!(browser.argv, ["/usr/bin/firefox"]);
-        assert!(browser.info().supports_kiosk);
-        assert!(!browser.info().supports_app);
+        assert_eq!(browser.start, Start::Command(vec!["/usr/bin/firefox".into()]));
+        assert!(browser.info(None).supports_kiosk);
+        assert!(!browser.info(None).supports_app);
+        assert!(!browser.info(None).is_default);
+        assert!(browser.info(Some("firefox.desktop")).is_default);
     }
 
     #[test]
@@ -243,10 +314,12 @@ mod tests {
     #[test]
     #[ignore = "depends on what is installed"]
     fn list_this_machines_browsers() {
-        for browser in installed() {
+        let browsers = installed();
+        println!("default: {:?}", default_id(&browsers));
+        for browser in browsers {
             println!(
                 "{:<28} {:<16} {:?}  {:?}",
-                browser.id, browser.name, browser.family, browser.argv
+                browser.id, browser.name, browser.family, browser.start
             );
         }
     }

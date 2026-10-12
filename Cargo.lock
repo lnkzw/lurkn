@@ -2761,11 +2761,13 @@ name = "lurkn-browser"
 version = "0.1.0"
 dependencies = [
  "lurkn-core",
+ "plist",
  "serde",
  "specta",
  "thiserror 2.0.20",
  "tracing",
  "url",
+ "windows-registry",
 ]
 
 [[package]]

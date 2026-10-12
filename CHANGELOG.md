@@ -38,7 +38,8 @@ The first public release.
 
 ### Watching
 
-- Streams open in your browser, with app, kiosk and new-window modes on Linux.
+- Streams open in your default browser, a browser you pick or a command of your
+  own, with app, kiosk and new-window modes on Linux, Windows and macOS.
 - Experimental: one synced browser window that follows the channel you pick,
   with Lurkn's chat beside the player for a TV — `Ctrl +` / `Ctrl −` sizes the
   chat in both windows.

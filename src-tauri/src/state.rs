@@ -326,32 +326,35 @@ impl AppState {
             }
         }
 
-        let chosen = match &browser.choice {
+        let wanted = match &browser.choice {
             BrowserChoice::Command { line } => {
                 let launch = launch::for_command(line, url)?;
                 tracing::info!(program = %launch.program, "opening with a custom command");
                 return launch::spawn(&launch);
             }
+            // Plain mode through the system's own handler is exactly what the
+            // desktop would do; a mode needs a concrete browser to pass flags to.
+            BrowserChoice::System if browser.mode == LaunchMode::Normal => {
+                return self.browser.open_url(url);
+            }
+            BrowserChoice::System => None,
             BrowserChoice::Installed { id } => Some(id.clone()),
-            // Plain mode through the opener plugin is exactly what the desktop
-            // would do; a mode needs a concrete browser to pass flags to.
-            BrowserChoice::System if browser.mode == LaunchMode::Normal => None,
-            BrowserChoice::System => crate::browser::default_browser_id(),
-        };
-
-        let Some(id) = chosen else {
-            return self.browser.open_url(url);
         };
 
         let installed = crate::browser::installed();
+        let id = match wanted {
+            Some(id) => id,
+            None => match lurkn_browser::default_id(&installed) {
+                Some(id) => id,
+                // The mode cannot be applied, but the stream can still open.
+                None => {
+                    tracing::debug!("the default browser is not one Lurkn can start itself");
+                    return self.browser.open_url(url);
+                }
+            },
+        };
+
         let Some(found) = installed.into_iter().find(|b| b.id == id) else {
-            // For an explicit choice this is the user's setting gone stale; for
-            // the system default it only means the mode cannot be applied, so
-            // fall back rather than refuse to open anything.
-            if matches!(browser.choice, BrowserChoice::System) {
-                tracing::debug!(id, "the default browser has no usable desktop entry");
-                return self.browser.open_url(url);
-            }
             tracing::warn!(id, "the chosen browser is no longer installed");
             return Err(BrowserError::Missing);
         };

@@ -141,12 +141,15 @@ fn browser_message(error: lurkn_browser::BrowserError) -> String {
     }
 }
 
-/// The browsers installed on this machine, for the browser picker.
+/// The browsers installed on this machine, for the browser picker, with the
+/// system default marked.
 #[tauri::command]
 #[specta::specta]
 pub async fn list_browsers() -> Result<Vec<lurkn_browser::BrowserInfo>, ()> {
-    Ok(crate::browser::installed()
+    let browsers = crate::browser::installed();
+    let default = lurkn_browser::default_id(&browsers);
+    Ok(browsers
         .iter()
-        .map(lurkn_browser::Browser::info)
+        .map(|browser| browser.info(default.as_deref()))
         .collect())
 }

@@ -107,30 +107,42 @@
     })();
   });
 
-  /** The select's value: a marker, or `id:` and the desktop-entry id. */
-  const browserValue = $derived(choice.kind === 'installed' ? `id:${choice.id}` : choice.kind);
+  /**
+   * "A command of your own" picked, with nothing typed yet. Not saved until
+   * there is a command: an empty one is stored as the system default, and the
+   * select would jump straight back.
+   */
+  let pickingCommand = $state(false);
 
-  const chosenBrowser = $derived(
-    choice.kind === 'installed' ? (browsers.find((b) => b.id === choice.id) ?? null) : null,
+  /** The select's value: a marker, or `id:` and the browser's id. */
+  const browserValue = $derived(
+    pickingCommand ? 'command' : choice.kind === 'installed' ? `id:${choice.id}` : choice.kind,
   );
 
-  /**
-   * The system default resolves to a browser only at launch time, so its
-   * capabilities are unknown here; offering every mode is better than hiding
-   * one that would have worked.
-   */
+  const defaultBrowser = $derived(browsers.find((b) => b.isDefault) ?? null);
+
+  /** The browser a stream would open in, when Lurkn knows which. */
+  const chosenBrowser = $derived(
+    choice.kind === 'installed'
+      ? (browsers.find((b) => b.id === choice.id) ?? null)
+      : choice.kind === 'system'
+        ? defaultBrowser
+        : null,
+  );
+
+  /** Unknown capabilities offer every mode: better than hiding one that would have worked. */
   const modes = $derived({
     app: chosenBrowser?.supportsApp ?? true,
     kiosk: chosenBrowser?.supportsKiosk ?? true,
   });
 
   function chooseBrowser(value: string) {
+    pickingCommand = false;
     if (value === 'system') {
       void settings.updateBrowser({ choice: { kind: 'system' } });
     } else if (value === 'command') {
-      void settings.updateBrowser({
-        choice: { kind: 'command', line: commandLine },
-      });
+      if (commandLine.trim() === '') pickingCommand = true;
+      else void settings.updateBrowser({ choice: { kind: 'command', line: commandLine } });
     } else {
       void settings.updateBrowser({ choice: { kind: 'installed', id: value.slice(3) } });
     }
@@ -146,9 +158,11 @@
   });
 
   function saveCommand() {
+    const line = commandLine.trim();
     const current = settings.current.browser.choice;
-    if (current.kind !== 'command' || commandLine.trim() === current.line) return;
-    void settings.updateBrowser({ choice: { kind: 'command', line: commandLine } });
+    if (line === '' || (current.kind === 'command' && line === current.line)) return;
+    pickingCommand = false;
+    void settings.updateBrowser({ choice: { kind: 'command', line } });
   }
   let themeFiles = $state<ThemeEntry[]>([]);
   let themeFolder = $state<string | null>(null);
@@ -1103,7 +1117,7 @@
             <label class="label" for="browser-choice">
               Streams open in
               <InfoHint label="which browser opens streams">
-                The list is every application your desktop knows opens web links. A stream
+                The list is every application your system knows opens web links. A stream
                 never plays inside Lurkn — it is handed to the program you pick here, along
                 with links you click in chat.
               </InfoHint>
@@ -1114,7 +1128,9 @@
               value={browserValue}
               onchange={(e) => chooseBrowser(e.currentTarget.value)}
             >
-              <option value="system">Your default browser</option>
+              <option value="system">
+                Your default browser{defaultBrowser ? ` (${defaultBrowser.name})` : ''}
+              </option>
               {#if browsers.length > 0}
                 <optgroup label="Installed">
                   {#each browsers as installed (installed.id)}
@@ -1126,15 +1142,16 @@
           </select>
         </div>
 
-        {#if choice.kind === 'command'}
+        {#if pickingCommand || choice.kind === 'command'}
           <div class="row">
             <label class="label" for="browser-command">
               Command
               <InfoHint label="the custom command">
                 Written as you would type it, but run directly rather than through a shell:
                 <code>$HOME</code>, <code>~</code>, <code>&amp;&amp;</code> and <code>|</code>
-                are ordinary characters here. <code>%u</code> marks where the stream URL
-                goes; leave it out and the URL is added at the end.
+                are ordinary characters here. A path with spaces goes in double quotes.
+                <code>%u</code> marks where the stream URL goes; leave it out and the URL is
+                added at the end.
               </InfoHint>
             </label>
             <input
@@ -1150,11 +1167,9 @@
               onblur={saveCommand}
             />
           </div>
-        {:else if platform === 'linux'}
+        {:else}
           <!-- App, kiosk and a new window are flags passed to a browser Lurkn
-               found through the desktop's entries, which only Linux has. On
-               Windows and macOS a stream opens the way the system opens any
-               link, and these would silently do nothing. -->
+               knows: one it found, or the default when it is one of those. -->
           <div class="row">
             <span class="label">
               Window
@@ -1162,8 +1177,9 @@
                 Applies to streams only: a link from chat always opens the way a link opens
                 anywhere else. <strong>App</strong> opens one window holding only the stream —
                 no tabs, no address bar. <strong>Kiosk</strong> goes fullscreen with no browser chrome at
-                all. Which are available depends on the browser: Chromium-based ones do both,
-                Firefox-based ones do kiosk only, and anything else gets an ordinary window.
+                all. Which are available depends on the browser: Chromium-based ones (Chrome,
+                Edge, Brave, Vivaldi, Opera) do both, Firefox-based ones do kiosk only, and
+                anything else gets an ordinary window.
               </InfoHint>
             </span>
             <div class="segmented">
@@ -1245,6 +1261,11 @@
             Playback may need one click to start, and a stream behind an age gate shows that
             gate inside the window. Nothing but your browser can reach the page: it is bound
             to this machine and carries a token that changes every time Lurkn starts.
+            <br /><br />
+            The player is Twitch's embedded one, so whether it knows you are logged in is up
+            to the browser. Chromium-based ones let it see your Twitch login. Firefox-based
+            ones, Safari and Brave keep it from players on other pages, so it plays as if
+            you were logged out: with ads, and without what a subscription brings.
           </InfoHint>
         </div>
 

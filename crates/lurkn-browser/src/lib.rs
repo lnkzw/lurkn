@@ -2,13 +2,15 @@
 //! Browser launching: the system default, a browser found installed, or a
 //! command of the reader's own. See `docs/architecture.md` §7.
 
+pub mod bundles;
 pub mod desktop;
 pub mod detect;
 pub mod family;
 pub mod host;
 pub mod launch;
+pub mod registry;
 
-pub use detect::{installed, Browser, BrowserInfo};
+pub use detect::{default_id, installed, Browser, BrowserInfo, Start};
 pub use family::Family;
 pub use launch::Launch;
 

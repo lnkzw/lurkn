@@ -44,7 +44,10 @@ export const commands = {
 	 *  Opened as a plain link, never with the stream settings: see [`OpenAs`].
 	 */
 	openLink: (url: string) => typedError<null, string>(__TAURI_INVOKE("open_link", { url })),
-	/**  The browsers installed on this machine, for the browser picker. */
+	/**
+	 *  The browsers installed on this machine, for the browser picker, with the
+	 *  system default marked.
+	 */
 	listBrowsers: () => typedError<BrowserInfo[], null>(__TAURI_INVOKE("list_browsers")),
 	/**
 	 *  Select a channel: chat follows it, and no browser is opened.
@@ -402,6 +405,8 @@ export type BrowserInfo = {
 	family: Family,
 	supportsApp: boolean,
 	supportsKiosk: boolean,
+	/**  The one the system opens web links with. */
+	isDefault: boolean,
 };
 
 export type BrowserSettings = {

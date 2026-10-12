@@ -436,7 +436,7 @@ The default is the system's own handler: `xdg-open` on Linux, started by
 `lurkn-browser` itself, and Tauri's opener plugin elsewhere (`open` on macOS,
 the shell on Windows). It is the fallback for everything below.
 
-Everything Lurkn starts — a browser, `xdg-open`, `xdg-mime` — goes through
+Everything Lurkn starts — a browser, `open`, `xdg-open`, `xdg-mime` — goes through
 `lurkn_browser::host::command`. Run from an AppImage, Lurkn's environment
 points the library path, GTK's module paths and more into the mounted image;
 a browser that inherited it would load Lurkn's bundled GTK and GLib and die
@@ -450,26 +450,34 @@ URL construction is a pure function in `lurkn-core` (`twitch_channel_url(login)
 the launcher. A launch failure reads *"Could not open your browser. Please
 check your system's default browser settings."*, with the detail in the log.
 
-### 7.1 Choosing a browser (Linux)
+### 7.1 Choosing a browser
 
 `lurkn-browser` also finds installed browsers and launches one directly, so a
-stream can open in a chosen browser and window mode. Discovery reads
-freedesktop desktop entries, which only Linux has; on Windows and macOS the
-choice is the system default or a custom command, and the mode options are
-hidden.
+stream can open in a chosen browser and window mode, on every platform.
 
-**Discovery is the desktop's own answer, not a list of browser names.**
-`detect.rs` reads desktop entries from the XDG application directories and keeps
-those whose `MimeType` claims `x-scheme-handler/http(s)`, that are visible
-(`NoDisplay`/`Hidden`/`Terminal`), and whose `TryExec`/program exists — the same
-source the system's "open with" dialog uses. A browser with no desktop entry is
-not listed; the custom command covers it.
+**Discovery is the system's own answer, not a list of browser names.** Each
+platform is asked where its own default-browser choice comes from, so what
+Lurkn lists is what the user expects to see:
+
+| Platform | Source | Id | Module |
+| --- | --- | --- | --- |
+| Linux | desktop entries in the XDG application directories whose `MimeType` claims `x-scheme-handler/http(s)`, that are visible (`NoDisplay`/`Hidden`/`Terminal`), and whose `TryExec`/program exists | the entry's file name | `detect.rs` |
+| Windows | `Software\Clients\StartMenuInternet` in HKCU, then HKLM, then its WOW6432Node copy: one key per browser, its program under `shell\open\command` | the key's name | `registry.rs` |
+| macOS | `.app` bundles in `~/Applications` and `/Applications` whose `Info.plist` lists `https` under `CFBundleURLTypes` | the bundle identifier | `bundles.rs` |
+
+A browser the system does not know of is not listed; the custom command covers
+it. The rules are plain functions over strings and parsed property lists, so
+they are unit-tested on every platform; only the reading is platform-gated.
+`unsafe_code` is forbidden workspace-wide, which rules out the shell and
+LaunchServices APIs and is why both are read from their records instead.
 
 **Family classification is by name, because nothing better exists.** A desktop
-entry says what to run, not what it is. `family.rs` searches the command line
-for markers, which also catches Flatpak entries (`app/org.mozilla.firefox/…`).
-Anything unrecognised is `Family::Other` and receives a plain URL: a wrong guess
-means a browser that refuses to start.
+entry or a registration says what to run, not what it is. `family.rs` searches
+the command line for markers, which also catches Flatpak entries
+(`app/org.mozilla.firefox/…`); on macOS it searches the bundle path and
+identifier (`com.google.Chrome`, `app.zen-browser.zen`). Anything unrecognised
+is `Family::Other` and receives a plain URL: a wrong guess means a browser that
+refuses to start.
 
 | Family | App mode | Kiosk mode |
 | --- | --- | --- |
@@ -481,16 +489,38 @@ Firefox has no app mode, so a request for one steps down to kiosk rather than
 failing or silently opening an ordinary window. `Family::Other` steps down to a
 plain URL.
 
+**A Mac app is started through `open`, never by running its binary.** A browser
+started as Lurkn's child would count Lurkn as the app responsible for it, and
+camera or microphone prompts would name Lurkn for as long as it ran. A URL
+alone goes as `open -a <app> <url>`, an Apple event that reaches a copy already
+running; flags only reach a new process, so they go as
+`open -n -a <app> --args <flags>`, and Chromium or Firefox hands the request to
+the running copy.
+
 **The system default can still take a mode.** `BrowserChoice::System` with a
-non-normal mode resolves the default through `xdg-mime query default
-x-scheme-handler/https` and launches it like any installed browser; if that
-cannot be resolved, it falls back to the opener plugin with no flags.
+non-normal mode resolves the default and launches it like any installed
+browser; if it is not one Lurkn found, the stream opens through the system
+handler with no flags. The settings screen names the default and offers only
+the modes it has. Where the default comes from:
+
+- Linux: `xdg-mime query default x-scheme-handler/https`, what `xdg-open` goes by.
+- Windows: the class chosen for `https` under
+  `…\Shell\Associations\UrlAssociations\https`, `UserChoiceLatest` before
+  `UserChoice` (Windows 11 25H2 stops updating the older key), then that
+  class's `shell\open\command` in the user's classes over the machine's, matched
+  to a registered browser by program path.
+- macOS: LaunchServices' record,
+  `~/Library/Preferences/com.apple.LaunchServices/com.apple.launchservices.secure.plist`,
+  the `LSHandlerRoleAll` of the `https` handler; no record means Safari.
 
 **A custom command is an argv template, never a shell line.** `%u` marks the
 URL, as in a desktop entry; without one the URL is appended. Splitting honours
 quotes and nothing else: `$HOME`, `~`, `&&` and `|` are literal characters,
 because the program and each argument go to the OS separately. Test
-`shell_operators_are_not_operators` pins this.
+`shell_operators_are_not_operators` pins this. On Windows only double quotes
+group and a backslash is a path separator, not an escape
+(`launch::Quoting::Windows`); a console program is started without a console
+window, since its output is discarded anyway.
 
 **A new window is a normal-mode concern only.** App and kiosk already open a
 window of their own, and passing both flags confuses Chromium, so
@@ -986,7 +1016,7 @@ break silently when a provider changes its API.
 8. 7TV, BTTV and FFZ are community services with no SLA and no auth. Every call is treated as failure-prone. §6.1.
 9. Emote name collisions across providers are common (`OMEGALUL`, `Pog`) → precedence is explicit, not incidental. §6.2.
 10. Twitch stream thumbnails are cached upstream and lag several minutes — they are not presented as live.
-11. Browser choice and window modes need freedesktop desktop entries, so they exist on Linux only. §7.1.
+11. The synced window's player is Twitch's embed on a loopback page, so it sees the Twitch login only where the browser lets an embedded player use its site's cookies: Chromium-based browsers do; Firefox-based ones, Safari and Brave do not, and it plays as a logged-out viewer there, with ads. The settings hint says so. §7.2.
 12. Follows and hype trains are not in the activity feed: neither comes over chat, and both need scopes not requested.
 
 ---

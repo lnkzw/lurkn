@@ -10,11 +10,18 @@ publish.workspace = true
 # See docs/architecture.md §1.
 [dependencies]
 lurkn-core.workspace = true
+# How macOS applications declare what they open; already in the tree through
+# Tauri, and a plain dependency so the rules are tested on every platform.
+plist = "1"
 serde.workspace = true
 specta.workspace = true
 thiserror.workspace = true
 tracing.workspace = true
 url.workspace = true
+
+# The browsers Windows knows of, and which one is the default.
+[target.'cfg(windows)'.dependencies]
+windows-registry = "0.6"
 
 [lints]
 workspace = true

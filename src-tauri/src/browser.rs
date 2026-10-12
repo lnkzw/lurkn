@@ -59,24 +59,3 @@ impl BrowserLauncher for SystemBrowser {
 pub fn installed() -> Vec<lurkn_browser::Browser> {
     lurkn_browser::installed()
 }
-
-/// The desktop's own default web browser, as a desktop-entry id.
-///
-/// Asked of `xdg-mime` rather than guessed, so it matches what the opener
-/// plugin would have done. Used to honour app and kiosk mode for the "system
-/// default" choice, which otherwise could not take flags at all.
-pub fn default_browser_id() -> Option<String> {
-    let output = lurkn_browser::host::command("xdg-mime")
-        .args(["query", "default", "x-scheme-handler/https"])
-        .stdin(std::process::Stdio::null())
-        .stderr(std::process::Stdio::null())
-        .output()
-        .ok()?;
-
-    if !output.status.success() {
-        return None;
-    }
-
-    let id = String::from_utf8(output.stdout).ok()?.trim().to_owned();
-    (!id.is_empty()).then_some(id)
-}
