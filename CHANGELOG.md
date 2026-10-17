@@ -10,21 +10,7 @@ versions follow [Semantic Versioning](https://semver.org/) — while Lurkn is at
 
 ## [Unreleased]
 
-### Added
-
-- When the channel you are reading raids another, Lurkn goes along: chat
-  switches to the raided channel and the synced window follows.
-- `F5` or `Ctrl R` refreshes who is live, also with the sidebar docked as a
-  rail, where there is no refresh button.
-
-### Fixed
-
-- The synced window starts every stream on its own again instead of stopping
-  on a play button after each switch.
-- After the computer wakes from sleep, the live list updates within seconds
-  instead of showing who was live before the sleep for up to a minute or two.
-
-## [0.1.0] - 2026-10-12
+## [0.1.0] - 2026-10-17
 
 The first public release.
 
@@ -33,7 +19,8 @@ The first public release.
 - Log in with Twitch's device code: no password ever reaches Lurkn, and the
   session is kept in your system keyring.
 - Followed channels with live status, viewers, uptime and category, as a
-  drawer or a docked rail; open any channel by name with `Ctrl K`.
+  drawer or a docked rail; open any channel by name with `Ctrl K`, and refresh
+  who is live with `F5`.
 - Chat with Twitch, 7TV, BetterTTV and FrankerFaceZ emotes and badges, replies,
   mentions, an emote picker and completion for names, emotes and commands.
 - Whispers, kept on disk because Twitch serves no history for them.
@@ -57,6 +44,8 @@ The first public release.
 - Experimental: one synced browser window that follows the channel you pick,
   with Lurkn's chat beside the player for a TV — `Ctrl +` / `Ctrl −` sizes the
   chat in both windows.
+- When the channel you are reading raids another, Lurkn goes along: chat
+  switches to the raided channel and the synced window follows.
 - A chat overlay for OBS as a browser source.
 
 ### Everywhere
