@@ -10,6 +10,11 @@ versions follow [Semantic Versioning](https://semver.org/) — while Lurkn is at
 
 ## [Unreleased]
 
+### Fixed
+
+- The synced window starts every stream on its own again instead of stopping
+  on a play button after each switch.
+
 ## [0.1.0] - 2026-10-12
 
 The first public release.

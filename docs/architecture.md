@@ -605,10 +605,23 @@ so it is read-only and has no composer.
 - *Replay*: the last 150 lines go to every new connection, so a reloaded window comes back full. Rust keeps no log of its own, so a server started mid-conversation begins empty.
 - *Ctrl + / −* steps `chat.font_size` from either window. Lurkn handles it as a shortcut; the page `POST`s `/font?t=…&step=bigger|smaller`, the server hands the step to Lurkn over a broadcast channel, and Lurkn saves it like any settings change — the new size returns to the page as a look. A `POST`, because it changes a setting: nothing that only loads a URL can trigger it, and a form on another site cannot carry the token. The keys reach the page only while it, not Twitch's frame, has the keyboard; the page takes it back when the mouse moves over its own part of the window.
 
+**Nothing over the player.** Twitch's player does not start on its own while
+anything of the page lies over it — an invisible element counts. The first
+version kept a transparent strip over the video's right edge to notice the
+mouse, and every switch then stopped on a play button; driving the served
+page in Chromium over DevTools showed the video running on after every switch
+once the strip was gone (2026-10-17). So the arrows are out of the layout
+until the mouse arrives, and with the chat folded away a 1rem black rail
+*beside* the video is what notices it — over the video the page is told
+nothing, not even that the mouse crossed into the frame. `show` also skips a
+channel the player already has: the server replays the current channel to
+every connection.
+
 **Costs**, stated in the settings hint rather than hidden: it is Twitch's player
 rather than the channel page, so the channel-page/player-page setting does not
-apply; playback follows the browser's autoplay policy and may need one click;
-an age-gated stream shows its gate inside the window.
+apply; playback follows the browser's autoplay policy — Chromium plays a page
+it has no history with muted until it is clicked, and the port, so the origin,
+is new each run; an age-gated stream shows its gate inside the window.
 
 Settings compatibility: `Settings.browser` used to be the string
 `"systemDefault"` and is now a group. Serde's `default` only covers a *missing*

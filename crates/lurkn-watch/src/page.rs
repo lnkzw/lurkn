@@ -89,20 +89,27 @@ const TEMPLATE: &str = r##"<!doctype html>
   /* The arrow that hides or shows the chat sits on the video, at its right
      edge — beside the chat rather than over its lines — and shows only while
      the mouse moves, so a window left on a TV is the stream and the chat and
-     nothing else. Over the video the page is told nothing — the player is
-     Twitch's frame, not this page — so the strip down that edge is the page's
-     own, there to notice the mouse arriving. It stops short of the player's
-     controls. One spot, one arrow at a time: hide while the chat is open,
-     show while it is folded away. */
-  #zone { position: absolute; top: 0; right: 0; bottom: 6rem; width: 4rem; z-index: 2; }
-  .edge { position: absolute; top: 0.5rem; right: 0.5rem; width: 2.25rem; height: 2.25rem;
-    padding: 0; display: grid; place-items: center; border: 1px solid var(--border);
-    border-radius: 6px; background: color-mix(in srgb, var(--bg-raised) 85%, transparent);
-    color: var(--text); cursor: pointer; opacity: 0; transition: opacity 0.2s ease; }
-  .awake .edge, .edge:hover, .edge:focus-visible { opacity: 1; }
+     nothing else. One spot, one arrow at a time: hide while the chat is open,
+     show while it is folded away.
+
+     Nothing of the page may lie over the video while the mouse is away.
+     Twitch's player will not start on its own while anything covers it — an
+     invisible button counts — and a strip kept over the video to notice the
+     mouse left every switch paused, waiting for a click on play. Over the video
+     the page is told nothing, not even that the mouse arrived, so with the
+     chat folded away a narrow rail beside the video is the page's own, there
+     to notice it; black, to pass for the player's letterbox. */
+  #rail { display: none; flex: none; width: 1rem; background: #000; }
+  .collapsed #rail { display: block; }
+  .edge { position: absolute; top: 0.5rem; right: 0.5rem; z-index: 2; width: 2.25rem;
+    height: 2.25rem; padding: 0; display: none; place-items: center;
+    border: 1px solid var(--border); border-radius: 6px;
+    background: color-mix(in srgb, var(--bg-raised) 85%, transparent);
+    color: var(--text); cursor: pointer; }
+  html:not(.collapsed).awake #collapse, html:not(.collapsed) #collapse:hover,
+  html:not(.collapsed) #collapse:focus-visible, html.collapsed.awake #expand,
+  html.collapsed #expand:hover, html.collapsed #expand:focus-visible { display: grid; }
   .edge svg { width: 1.25rem; height: 1.25rem; }
-  #expand, .collapsed #collapse { display: none; }
-  .collapsed #expand { display: grid; }
 
   .msg { padding: 0.18em 0.9em; line-height: 1.45; overflow-wrap: anywhere; }
   .striped .odd { background: color-mix(in srgb, var(--text) 4%, transparent); }
@@ -144,21 +151,20 @@ const TEMPLATE: &str = r##"<!doctype html>
 <body tabindex="-1">
 <div id="stage">
   <div id="video">
+    <button type="button" class="edge" id="collapse" title="Hide chat" aria-label="Hide chat">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M17 12H3"/><path d="m11 18 6-6-6-6"/><path d="M21 5v14"/></svg>
+    </button>
+    <button type="button" class="edge" id="expand" title="Show chat" aria-label="Show chat">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m9 6-6 6 6 6"/><path d="M3 12h14"/><path d="M21 19V5"/></svg>
+    </button>
     <div id="player"></div>
     <p id="idle">Pick a channel in Lurkn.</p>
-    <div id="zone">
-      <button type="button" class="edge" id="collapse" title="Hide chat" aria-label="Hide chat">
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M17 12H3"/><path d="m11 18 6-6-6-6"/><path d="M21 5v14"/></svg>
-      </button>
-      <button type="button" class="edge" id="expand" title="Show chat" aria-label="Show chat">
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m9 6-6 6 6 6"/><path d="M3 12h14"/><path d="M21 19V5"/></svg>
-      </button>
-    </div>
   </div>
   <aside id="chat" aria-label="Chat">
     <p id="elsewhere" hidden>Lurkn is reading <strong id="reading"></strong>, not this stream.</p>
     <div id="log"></div>
   </aside>
+  <div id="rail"></div>
 </div>
 <div id="lost" hidden>
   <span>Lurkn is no longer running, so this window has stopped following it. The stream keeps playing.</span>
@@ -190,7 +196,9 @@ const TEMPLATE: &str = r##"<!doctype html>
   }
 
   function show(channel) {
-    if (!channel) return;
+    // The server replays the channel to every connection, the first one
+    // included, so the player is often asked for the stream it already has.
+    if (!channel || channel === playing) return;
     document.title = channel + " — Lurkn";
     idle.hidden = true;
     playing = channel;
@@ -415,10 +423,18 @@ const TEMPLATE: &str = r##"<!doctype html>
   });
 
   var sleep = null;
-  document.addEventListener("mousemove", function () {
+  function wake() {
     root.classList.add("awake");
     clearTimeout(sleep);
     sleep = setTimeout(function () { root.classList.remove("awake"); }, 2000);
+  }
+  // Out of the layout while asleep, so out of the tab order too; Tab brings
+  // the arrow back first, and it stays while it has the focus.
+  window.addEventListener("keydown", function (event) {
+    if (event.key === "Tab") wake();
+  });
+  document.addEventListener("mousemove", function () {
+    wake();
     // A click on the player hands it the keyboard, and Twitch's frame never
     // passes a key back — so Ctrl and + would zoom the browser instead of the
     // chat. The mouse being over this page again means the player is no
@@ -618,6 +634,24 @@ mod tests {
         let video = html.find(r#"<div id="video">"#).unwrap();
         let chat = html.find(r#"<aside id="chat""#).unwrap();
         assert!(video < chat);
+    }
+
+    /// Twitch's player does not start on its own while anything of the page
+    /// lies over it, an invisible button included. The arrows are out of the
+    /// layout until the mouse comes, and what notices the mouse with the chat
+    /// folded away sits beside the video rather than on it.
+    #[test]
+    fn nothing_lies_over_the_player_while_the_mouse_is_away() {
+        let html = page();
+        let at = html.find(".edge {").unwrap();
+        let rule = &html[at..at + html[at..].find('}').unwrap()];
+        assert!(rule.contains("display: none"), "{rule}");
+        assert!(!html.contains(r#"id="zone""#));
+
+        let video = html.find(r#"<div id="video">"#).unwrap();
+        let chat = html.find(r#"<aside id="chat""#).unwrap();
+        let rail = html.find(r#"<div id="rail">"#).unwrap();
+        assert!(video < chat && chat < rail, "the rail is outside the video");
     }
 
     /// Both arrows sit on the video, beside the chat: one over the chat's
