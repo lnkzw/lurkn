@@ -10,10 +10,17 @@ versions follow [Semantic Versioning](https://semver.org/) — while Lurkn is at
 
 ## [Unreleased]
 
+### Added
+
+- `F5` or `Ctrl R` refreshes who is live, also with the sidebar docked as a
+  rail, where there is no refresh button.
+
 ### Fixed
 
 - The synced window starts every stream on its own again instead of stopping
   on a play button after each switch.
+- After the computer wakes from sleep, the live list updates within seconds
+  instead of showing who was live before the sleep for up to a minute or two.
 
 ## [0.1.0] - 2026-10-12
 

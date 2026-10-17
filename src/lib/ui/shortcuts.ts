@@ -16,7 +16,8 @@ export type Action =
   | 'newest'
   | 'font-bigger'
   | 'font-smaller'
-  | 'watch';
+  | 'watch'
+  | 'refresh';
 
 /** Just enough of a KeyboardEvent to decide, so tests need no DOM. */
 export interface Keys {
@@ -51,6 +52,10 @@ export function actionFor(event: Keys): Action | null {
       // that nothing else could once the header is hidden.
       case 'o':
         return 'watch';
+      // What the browser would reload is the live list: Twitch asked now
+      // rather than on the next poll.
+      case 'r':
+        return 'refresh';
       case 'end':
         return 'newest';
       // Where `+` sits depends on the layout: its own key on a German one,
@@ -66,6 +71,9 @@ export function actionFor(event: Keys): Action | null {
         return null;
     }
   }
+
+  // A function key types nothing, so it is the one binding without a modifier.
+  if (key === 'f5' && !mod && !event.altKey) return 'refresh';
 
   if (event.altKey && !mod) {
     if (key === 'arrowdown') return 'next-channel';
@@ -113,6 +121,7 @@ export const SHORTCUTS: Array<{ keys: string; what: string }> = [
   { keys: 'Ctrl K', what: 'Open a channel' },
   { keys: 'Ctrl O', what: 'Watch the stream' },
   { keys: 'Alt ↑ / ↓', what: 'Previous / next live channel' },
+  { keys: 'F5', what: 'Refresh who is live' },
   { keys: 'Ctrl Shift W', what: 'Whispers' },
   { keys: 'Ctrl End', what: 'Jump to newest' },
   { keys: 'Ctrl + / −', what: 'Chat text bigger / smaller, here and in the synced window' },

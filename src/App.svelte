@@ -100,9 +100,10 @@
     const action = actionFor(event);
     if (!action) return;
 
-    // Bindings all carry a modifier, so this only guards against a future
-    // unmodified one being added without thinking about it.
+    // Bindings all carry a modifier but F5, which types nothing, so this only
+    // guards against a future unmodified one being added without thinking.
     if (
+      action !== 'refresh' &&
       isTyping(target?.tagName, target?.isContentEditable ?? false) &&
       !event.ctrlKey &&
       !event.metaKey &&
@@ -128,6 +129,9 @@
         break;
       case 'watch':
         if (follows.selected) void follows.watch(follows.selected);
+        break;
+      case 'refresh':
+        void follows.refresh();
         break;
       case 'next-channel':
         follows.step(1);

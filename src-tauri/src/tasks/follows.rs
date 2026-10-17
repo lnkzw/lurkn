@@ -86,14 +86,25 @@ pub async fn load_from_cache(app: &AppHandle) {
     emit(app, &state).await;
 }
 
+/// How a refresh went, as far as the next one is concerned.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum Refresh {
+    Done,
+    /// Twitch could not be reached at all: no network yet, typically, in the
+    /// seconds after a wake from sleep.
+    Unreachable,
+    /// Logged out, refused, rate limited: nothing a quick retry would fix.
+    Skipped,
+}
+
 /// One refresh cycle. `force` ignores the follow-list TTL.
-pub async fn refresh_now(app: &AppHandle, state: &AppState, force: bool) {
+pub async fn refresh_now(app: &AppHandle, state: &AppState, force: bool) -> Refresh {
     let Some(service) = state.follows_service().await else {
         tracing::debug!("not logged in; skipping the follow refresh");
-        return;
+        return Refresh::Skipped;
     };
     let Some(user_id) = state.current_user_id().await else {
-        return;
+        return Refresh::Skipped;
     };
 
     {
@@ -114,6 +125,12 @@ pub async fn refresh_now(app: &AppHandle, state: &AppState, force: bool) {
 
     let mut follows = state.follows.write().await;
     follows.loading = false;
+
+    let refresh = match &outcome {
+        Ok(_) => Refresh::Done,
+        Err(HelixError::Transport(_)) => Refresh::Unreachable,
+        Err(_) => Refresh::Skipped,
+    };
 
     match outcome {
         Ok(channels) => {
@@ -183,6 +200,7 @@ pub async fn refresh_now(app: &AppHandle, state: &AppState, force: bool) {
     }
 
     emit(app, state).await;
+    refresh
 }
 
 async fn fetch(
@@ -313,24 +331,70 @@ async fn emit(app: &AppHandle, state: &AppState) {
     crate::commands::chat::refresh_unfollowed(app, state).await;
 }
 
-/// Poll forever on the live cadence, with jitter so many clients do not align.
+/// How often the poller looks at the clocks. Short, because it is also how
+/// soon a wake from sleep is noticed; looking costs nothing.
+const TICK: StdDuration = StdDuration::from_secs(5);
+
+/// How far past a tick the wall clock may run before it means the machine was
+/// asleep rather than busy.
+const WAKE_SLACK: StdDuration = StdDuration::from_secs(30);
+
+/// How soon a poll that could not reach Twitch is tried again. A machine that
+/// has just woken is usually a few seconds ahead of its network, and waiting a
+/// whole interval for the second try leaves the list as old as the sleep for
+/// another minute.
+const RETRY_UNREACHABLE: StdDuration = StdDuration::from_secs(10);
+
+/// Poll forever on the live cadence, with jitter so many clients do not align,
+/// and at once after a wake from sleep.
 pub async fn run_poller(app: AppHandle) {
-    use lurkn_twitch::{LIVE_POLL_INTERVAL_SECS, LIVE_POLL_JITTER_SECS};
+    let mut due = tokio::time::Instant::now() + interval();
+    let mut wall = time::OffsetDateTime::now_utc();
 
     loop {
-        tokio::time::sleep(
-            StdDuration::from_secs(LIVE_POLL_INTERVAL_SECS) + jitter(LIVE_POLL_JITTER_SECS),
-        )
-        .await;
+        tokio::time::sleep(TICK).await;
+
+        // Tokio's clock is monotonic and stands still while the machine
+        // sleeps, so a wait begun before the lid closed still has most of its
+        // time to run once it opens. The wall clock keeps going; a jump in it
+        // is the machine waking up.
+        let woke = woke_up(wall, time::OffsetDateTime::now_utc());
+        wall = time::OffsetDateTime::now_utc();
+        if !woke && tokio::time::Instant::now() < due {
+            continue;
+        }
+        if woke {
+            tracing::debug!("the machine woke up; refreshing the live list now");
+        }
 
         let Some(state) = app.try_state::<AppState>() else {
             return;
         };
-        if state.current_user_id().await.is_none() {
-            continue;
-        }
-        refresh_now(&app, &state, false).await;
+        let refresh = if state.current_user_id().await.is_some() {
+            refresh_now(&app, &state, false).await
+        } else {
+            Refresh::Skipped
+        };
+
+        due = tokio::time::Instant::now()
+            + match refresh {
+                Refresh::Unreachable => RETRY_UNREACHABLE,
+                Refresh::Done | Refresh::Skipped => interval(),
+            };
+        // A slow refresh is time the wall clock spent awake.
+        wall = time::OffsetDateTime::now_utc();
     }
+}
+
+fn interval() -> StdDuration {
+    use lurkn_twitch::{LIVE_POLL_INTERVAL_SECS, LIVE_POLL_JITTER_SECS};
+    StdDuration::from_secs(LIVE_POLL_INTERVAL_SECS) + jitter(LIVE_POLL_JITTER_SECS)
+}
+
+/// Whether more wall-clock time passed over one tick than a tick and some
+/// slack: the machine was suspended in between.
+fn woke_up(before: time::OffsetDateTime, now: time::OffsetDateTime) -> bool {
+    now - before > TICK + WAKE_SLACK
 }
 
 /// Jitter without pulling in an rng crate for one number.
@@ -342,4 +406,39 @@ fn jitter(max_secs: u64) -> StdDuration {
         .map(|d| d.subsec_nanos() as u64)
         .unwrap_or(0);
     StdDuration::from_millis(nanos % (max_secs.max(1) * 1000))
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    const T0: time::OffsetDateTime = time::macros::datetime!(2026-10-17 08:00 UTC);
+
+    #[test]
+    fn an_ordinary_tick_is_not_a_wake() {
+        assert!(!woke_up(T0, T0 + TICK));
+        // A busy runtime runs late, but not by half a minute.
+        assert!(!woke_up(T0, T0 + TICK + StdDuration::from_secs(20)));
+    }
+
+    #[test]
+    fn a_night_between_two_ticks_is_a_wake() {
+        assert!(woke_up(T0, T0 + time::Duration::hours(8)));
+        assert!(woke_up(
+            T0,
+            T0 + TICK + WAKE_SLACK + StdDuration::from_secs(1)
+        ));
+    }
+
+    /// The wall clock set back, by hand or by NTP, is not a wake.
+    #[test]
+    fn a_clock_set_back_is_not_a_wake() {
+        assert!(!woke_up(T0, T0 - time::Duration::minutes(5)));
+    }
+
+    /// A wake must be noticed long before the poll would have come round.
+    #[test]
+    fn a_wake_is_noticed_well_inside_the_interval() {
+        assert!(TICK * 6 <= StdDuration::from_secs(lurkn_twitch::LIVE_POLL_INTERVAL_SECS));
+    }
 }

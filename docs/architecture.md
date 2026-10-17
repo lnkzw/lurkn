@@ -245,7 +245,19 @@ every 60s (jittered ±10s):
 
 No per-channel calls, no id-batching step. The full followed list
 (`/channels/followed`) and offline metadata refresh on a much slower cadence
-(~15 min) or on explicit refresh, since follows rarely change.
+(~15 min) or on explicit refresh — the sidebar's button, `F5` or `Ctrl R` —
+since follows rarely change.
+
+**Waking from sleep.** Tokio's timers run on the monotonic clock, which stands
+still while the machine is suspended, so a 60 s wait begun before the lid
+closed still had most of its time to run after it opened, and the list showed
+the evening before for up to a minute. The poller therefore ticks every 5 s
+and compares the wall clock: a jump of more than a tick and 30 s is a wake,
+and it polls at once. A poll that cannot reach Twitch at all — the network is
+usually a few seconds behind the wake — is retried after 10 s rather than a
+full interval. The HTTP client carries a 10 s connect and 30 s read timeout,
+so a request on a connection that died during the sleep fails instead of
+waiting out TCP's retries.
 
 Cost for a user with 500 follows: 5 requests/min steady-state against an
 800-point/min bucket. The interval is a constant, not a user setting.

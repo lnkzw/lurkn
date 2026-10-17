@@ -106,8 +106,14 @@ pub struct AppState {
 
 impl AppState {
     pub fn new(app: tauri::AppHandle, browser: Arc<dyn BrowserLauncher>) -> Self {
+        // Without timeouts a request on a connection that died while the
+        // machine slept waits on TCP's own retries, which take a quarter of an
+        // hour — and the live poll waits with it. Per read rather than per
+        // request, so a slow but moving download is never cut off.
         let http = reqwest::Client::builder()
             .user_agent(concat!("Lurkn/", env!("CARGO_PKG_VERSION")))
+            .connect_timeout(std::time::Duration::from_secs(10))
+            .read_timeout(std::time::Duration::from_secs(30))
             .build()
             .unwrap_or_default();
 

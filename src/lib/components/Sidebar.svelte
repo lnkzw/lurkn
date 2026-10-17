@@ -155,7 +155,7 @@
           onclick={() => follows.refresh()}
           disabled={follows.view.loading}
           aria-label="Refresh"
-          title="Refresh"
+          title="Refresh (F5)"
         >
           <svg viewBox="0 0 16 16" class:spinning={follows.view.loading} aria-hidden="true">
             <path d="M14 8a6 6 0 1 1-1.8-4.3M14 1v3.5h-3.5" />

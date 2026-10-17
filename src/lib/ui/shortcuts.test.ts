@@ -46,6 +46,14 @@ describe('actionFor', () => {
     expect(actionFor({ key: 'o' })).toBeNull();
   });
 
+  it('refreshes the live list with F5 or ctrl and r, as a browser reloads', () => {
+    expect(actionFor({ key: 'F5' })).toBe('refresh');
+    expect(actionFor({ key: 'r', ctrlKey: true })).toBe('refresh');
+    expect(actionFor({ key: 'r', metaKey: true })).toBe('refresh');
+    expect(actionFor({ key: 'r' })).toBeNull();
+    expect(actionFor({ key: 'F5', altKey: true })).toBeNull();
+  });
+
   it('knows the rest of the table', () => {
     expect(actionFor({ key: ',', ctrlKey: true })).toBe('settings');
     expect(actionFor({ key: 'End', ctrlKey: true })).toBe('newest');
