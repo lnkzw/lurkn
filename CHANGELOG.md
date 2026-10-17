@@ -12,6 +12,8 @@ versions follow [Semantic Versioning](https://semver.org/) — while Lurkn is at
 
 ### Added
 
+- When the channel you are reading raids another, Lurkn goes along: chat
+  switches to the raided channel and the synced window follows.
 - `F5` or `Ctrl R` refreshes who is live, also with the sidebar docked as a
   rail, where there is no refresh button.
 

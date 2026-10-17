@@ -248,6 +248,7 @@ export const commands = {
 /** Events */
 export const events = {
 	authChanged: makeEvent<AuthChanged>("auth-changed"),
+	channelRaided: makeEvent<ChannelRaided>("channel-raided"),
 	chatBatch: makeEvent<ChatBatch_Deserialize>("chat-batch"),
 	chatHistory: makeEvent<ChatHistory_Deserialize>("chat-history"),
 	chatStateChanged: makeEvent<ChatStateChanged>("chat-state-changed"),
@@ -507,6 +508,23 @@ export type ChannelHit = {
 	 *  load rather than being thrown away.
 	 */
 	viewers?: number | null,
+};
+
+/**
+ *  The open channel raided another. The main window goes along, as Twitch's
+ *  own page takes its viewers along; a synced window showing the raider has
+ *  already been moved by then.
+ */
+export type ChannelRaided = {
+	from: Login,
+	/**  UNTRUSTED. */
+	fromName: string,
+	/**
+	 *  The channel raided, enough to open it before the backend has fetched
+	 *  the rest.
+	 */
+	to: ChannelHit,
+	viewers: number,
 };
 
 export type ChatAuthor = {

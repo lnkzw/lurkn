@@ -149,6 +149,7 @@ pub async fn run_pump(app: AppHandle) {
                         }
                     }
                 }
+                Ok(ChatEvent::Raided(raid)) => follow_raid(&app, &state, *raid).await,
                 Ok(ChatEvent::RoomStateChanged { channel_id, state: room }) => {
                     // The own channel's slow mode is not the open channel's.
                     if crate::overlay::audience(&state, &channel_id).await.view {
@@ -166,6 +167,58 @@ pub async fn run_pump(app: AppHandle) {
 
             _ = ticker.tick() => flush(&app, &mut pending).await,
         }
+    }
+}
+
+/// The open channel raided another: go along, as Twitch's own page does.
+///
+/// A synced window showing the raider moves here, whatever `follow_chat` says:
+/// the stream it shows has just ended. Chat moves in the frontend, which owns
+/// the selection; with `follow_chat` on, that selection then points the window
+/// at the same channel again, which the page ignores.
+///
+/// A raid from a channel joined only for the overlay — the reader's own,
+/// typically — moves nothing: the open channel is somewhere else.
+async fn follow_raid(app: &AppHandle, state: &AppState, raid: lurkn_chat::eventsub::raid::Raid) {
+    let open = state
+        .current_channel
+        .read()
+        .await
+        .as_ref()
+        .is_some_and(|(_, id)| *id == raid.from_id);
+    if !open {
+        return;
+    }
+
+    if let Some(server) = crate::watch::running(state).await {
+        if server.channel().await.as_ref() == Some(&raid.from_login)
+            && server.set_channel(&raid.to_login).await > 0
+        {
+            tracing::debug!(
+                channel = raid.to_login.as_str(),
+                "the synced window followed a raid"
+            );
+        }
+    }
+
+    let event = crate::events::ChannelRaided {
+        from: raid.from_login,
+        from_name: raid.from_name,
+        to: lurkn_core::ChannelHit {
+            id: raid.to_id,
+            login: raid.to_login,
+            display_name: raid.to_name,
+            avatar_url: None,
+            // Being raided means being on air.
+            live: true,
+            category: None,
+            title: None,
+            viewers: None,
+        },
+        viewers: raid.viewers,
+    };
+    if let Err(error) = event.emit(app) {
+        tracing::warn!(%error, "could not publish a raid");
     }
 }
 

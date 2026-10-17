@@ -81,7 +81,7 @@ impl ChatApi for HelixChatApi {
         session_id: &str,
     ) -> Result<String, ChatError> {
         let token = self.token().await?;
-        let body = lurkn_chat::eventsub::subs::create_body(
+        let body = lurkn_chat::eventsub::subs::channel_body(
             subscription_type,
             broadcaster_id,
             &self.viewer_id,

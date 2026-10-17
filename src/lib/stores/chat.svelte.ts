@@ -62,6 +62,8 @@ class ChatStore {
    * which loops, clearing the log on every pass.
    */
   #requested: string | null = null;
+  /** A line of Lurkn's own to open a channel's log with, once it is switched to. */
+  #arrival: { login: string; message: ChatMessage } | null = null;
   /**
    * Parity offset for alternating backgrounds. Trimming from the front shifts
    * every index by one, so striping on the raw index would repaint the whole
@@ -238,6 +240,8 @@ class ChatStore {
     this.history = 0;
     this.lastSeenId = null;
     this.sendError = null;
+    if (this.#arrival?.login === login) this.messages = [this.#arrival.message];
+    this.#arrival = null;
 
     const result = await commands.selectChannel(login);
     if (result.status === 'error') {
@@ -245,6 +249,14 @@ class ChatStore {
       // Let a later attempt retry rather than pinning a channel that failed.
       this.#requested = null;
     }
+  }
+
+  /**
+   * Open the next switch to `login` with a line of Lurkn's own, such as why it
+   * moved there. Held until the switch, because switching clears the log.
+   */
+  noteOnArrival(login: string, message: ChatMessage): void {
+    this.#arrival = { login, message };
   }
 
   /**

@@ -5,6 +5,8 @@ import {
   type FollowedChannel,
   type FollowsView,
 } from '$lib/ipc';
+import { raidNotice } from '$lib/chat/raid';
+import { chat } from '$lib/stores/chat.svelte';
 import { settings } from '$lib/stores/settings.svelte';
 
 type IpcResult<T, E> = { status: 'ok'; data: T } | { status: 'error'; error: E };
@@ -84,6 +86,18 @@ class FollowsStore {
         if (event.payload && settings.current.broadcast.followOwnStream) {
           void this.openMine();
         }
+      }),
+    );
+
+    this.#unlisten.push(
+      // The channel being read raided another: go along, as Twitch's own page
+      // takes its viewers along. A raid by a channel joined only for the
+      // overlay leaves the reader where they are.
+      await events.channelRaided.listen((event) => {
+        const raid = event.payload;
+        if (this.selected !== raid.from) return;
+        chat.noteOnArrival(raid.to.login, raidNotice(raid));
+        this.open(raid.to);
       }),
     );
 

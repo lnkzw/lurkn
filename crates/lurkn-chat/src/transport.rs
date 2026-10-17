@@ -55,6 +55,8 @@ pub enum ChatEvent {
     },
     /// A whisper arrived. Not tied to a channel: it belongs to the account.
     Whisper(Box<lurkn_core::Whisper>),
+    /// A channel raided another. Only ever one Lurkn has joined, as the raider.
+    Raided(Box<crate::eventsub::raid::Raid>),
     /// Followers-only, slow mode and friends changed.
     RoomStateChanged {
         channel_id: String,

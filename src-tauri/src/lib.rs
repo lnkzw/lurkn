@@ -162,6 +162,7 @@ fn specta_builder() -> Builder<tauri::Wry> {
             events::ChatHistory,
             events::OpenChannelChanged,
             events::OwnStreamChanged,
+            events::ChannelRaided,
             events::ModerationEvent,
             events::UpdateChanged,
         ])

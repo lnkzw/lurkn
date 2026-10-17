@@ -306,8 +306,9 @@ EventSub envelope.** `join`/`part` describe intent, not wire protocol.
 | Limits | 3 sockets per user token, 300 enabled subscriptions per socket, `max_total_cost` 10 |
 
 On cost: a subscription whose `user_id` condition is the authorizing user costs
-**0**, so the `max_total_cost` ceiling does not constrain Lurkn. 300 per socket
-is the real ceiling.
+**0**, so the `max_total_cost` ceiling does not constrain Lurkn. The one
+exception is `channel.raid` (§5.3), which costs 1 — one per joined channel, so
+at most a couple of the 10. 300 per socket is the real ceiling.
 
 ### 5.2 Service internals
 
@@ -321,6 +322,7 @@ lurkn-chat/src/
 │   ├── notification.rs # channel.chat.notification → channel events (subs, raids, …)
 │   ├── moderation.rs # clears, deletions, room settings
 │   ├── whisper.rs    # user.whisper.message
+│   ├── raid.rs       # channel.raid → the open channel raiding another
 │   └── subs.rs       # desired-set reconciliation: create/delete subscriptions
 ├── dedupe.rs         # message_id LRU — Twitch may redeliver
 ├── backoff.rs        # 1s→30s full jitter
@@ -337,13 +339,14 @@ Three things a naive EventSub client gets wrong:
 ### 5.3 Beyond chat messages
 
 `channel.chat.message` carries no room or user state. A joined channel
-therefore holds **six** subscriptions, all with the reader as `user_id` and so
-all at cost 0:
+therefore holds **seven** subscriptions — six with the reader as `user_id` and
+so at cost 0, and the raid:
 
 - `channel.chat.message` — the chat itself;
 - `channel.chat_settings.update` (with an underscore — Twitch's name, not the `channel.chat.*` pattern) — room modes, **plus `Get Chat Settings` on join**: the subscription fires only on a *change*, so a channel already in followers-only would otherwise look unrestricted;
 - `channel.chat.clear`, `channel.chat.clear_user_messages`, `channel.chat.message_delete` — moderation;
-- `channel.chat.notification` — subs, gifts, raids, announcements, for the log and the activity feed.
+- `channel.chat.notification` — subs, gifts, raids, announcements, for the log and the activity feed;
+- `channel.raid` with `from_broadcaster_user_id` — the channel sending its viewers elsewhere. A raid *into* the channel is a `channel.chat.notification`; this is the other direction, which nothing in chat reports. Public, so no scope, and the condition names the raider alone: Twitch takes no `user_id` here and refuses a `to_broadcaster_user_id` beside it. Cost 1, since the raider has not authorised Lurkn. What Lurkn does with it is §8.3.
 
 Per user rather than per channel: `user.whisper.message` when whispers are on,
 and `stream.online` / `stream.offline` for the reader's own channel.
@@ -763,6 +766,14 @@ chat switcher.
 watching is what you are reading. It is off by default and it only ever
 *switches a window that is already open*: it never starts the watch server and
 never launches a browser, so arrow-keying down the list still costs nothing.
+
+**Raids.** When the channel being read raids another (`channel.raid`, §5.3),
+Lurkn goes along, as Twitch's own page takes its viewers along: the selection
+moves to the raided channel, whose log opens with a line saying whose raid was
+followed. A synced window showing the raider is moved by the backend whatever
+`follow_chat` says, since the stream it shows has just ended; it is the one
+case of the window moving without a selection, and it never opens one. A raid
+by a channel joined only for the overlay moves nothing.
 
 Lurkn is the source of truth for what it opened; it never queries the browser.
 

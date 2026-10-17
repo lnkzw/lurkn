@@ -225,6 +225,41 @@ async fn subscribes_after_the_welcome_and_delivers_messages() {
     handle.shutdown().await;
 }
 
+/// The open channel raiding another reaches the app as a raid, so it can go
+/// along — not as chat, and not dropped as an unhandled type.
+#[tokio::test]
+async fn a_raid_by_the_open_channel_is_delivered() {
+    let raid = r#"{"metadata":{"message_id":"raid1","message_type":"notification",
+         "subscription_type":"channel.raid","message_timestamp":"2026-09-20T12:00:00Z"},
+       "payload":{"subscription":{"type":"channel.raid"},
+         "event":{"from_broadcaster_user_id":"11111","from_broadcaster_user_login":"forsen",
+           "from_broadcaster_user_name":"Forsen","to_broadcaster_user_id":"33333",
+           "to_broadcaster_user_login":"xqc","to_broadcaster_user_name":"xQc","viewers":4200}}}"#;
+    let (url, _server) = fake_server(vec![vec![welcome("S1", 10), raid.to_owned()]]).await;
+
+    let api = Arc::new(FakeApi::default());
+    let (handle, mut rx) = start(&url, Arc::clone(&api));
+    handle
+        .set_channels(vec![UserId("11111".into())])
+        .await
+        .unwrap();
+
+    let deadline = tokio::time::Instant::now() + Duration::from_secs(5);
+    let raid = loop {
+        match next_event(&mut rx, deadline - tokio::time::Instant::now()).await {
+            Some(ChatEvent::Raided(raid)) => break raid,
+            Some(ChatEvent::Message(m)) => panic!("a raid is not chat: {m:?}"),
+            Some(_) => continue,
+            None => panic!("no raid arrived"),
+        }
+    };
+    assert_eq!(raid.from_id, UserId("11111".into()));
+    assert_eq!(raid.to_login.as_str(), "xqc");
+    assert_eq!(raid.viewers, 4200);
+
+    handle.shutdown().await;
+}
+
 /// EventSub may redeliver; the same message_id must surface once.
 #[tokio::test]
 async fn a_redelivered_message_is_shown_once() {

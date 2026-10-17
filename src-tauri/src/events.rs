@@ -78,6 +78,21 @@ pub struct OpenChannelChanged(pub Option<lurkn_core::FollowedChannel>);
 #[derive(Debug, Clone, Serialize, Deserialize, Type, Event)]
 pub struct OwnStreamChanged(pub bool);
 
+/// The open channel raided another. The main window goes along, as Twitch's
+/// own page takes its viewers along; a synced window showing the raider has
+/// already been moved by then.
+#[derive(Debug, Clone, Serialize, Deserialize, Type, Event)]
+#[serde(rename_all = "camelCase")]
+pub struct ChannelRaided {
+    pub from: lurkn_core::Login,
+    /// UNTRUSTED.
+    pub from_name: String,
+    /// The channel raided, enough to open it before the backend has fetched
+    /// the rest.
+    pub to: lurkn_core::ChannelHit,
+    pub viewers: u32,
+}
+
 /// The tray asked for the whisper panel. Carries nothing: it is a request to
 /// look at something, not a change of state.
 #[derive(Debug, Clone, Serialize, Deserialize, Type, Event)]

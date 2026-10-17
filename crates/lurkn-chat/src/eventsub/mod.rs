@@ -2,6 +2,7 @@ pub mod chat;
 pub mod envelope;
 pub mod moderation;
 pub mod notification;
+pub mod raid;
 pub mod socket;
 pub mod subs;
 pub mod whisper;

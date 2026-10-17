@@ -151,6 +151,11 @@ impl WatchServer {
         write_to_all(&self.shared.clients, frame.as_bytes()).await
     }
 
+    /// The channel the windows were last told to show.
+    pub async fn channel(&self) -> Option<Login> {
+        self.shared.current.lock().await.clone()
+    }
+
     /// How many windows are listening, as far as the last write could tell.
     pub async fn listeners(&self) -> usize {
         self.shared.clients.lock().await.len()

@@ -19,6 +19,7 @@ use crate::eventsub::chat::{to_message, ChatMessageEvent};
 use crate::eventsub::envelope::{parse, Envelope};
 use crate::eventsub::moderation;
 use crate::eventsub::notification;
+use crate::eventsub::raid;
 use crate::eventsub::subs::{self, reconcile, SubscriptionKey};
 use crate::eventsub::whisper;
 use crate::transport::{ChatConnState, ChatError, ChatEvent};
@@ -356,6 +357,23 @@ async fn connect_and_serve(
                                             %error,
                                             "skipping an unreadable channel event"
                                         );
+                                    }
+                                }
+                            }
+                            subs::CHANNEL_RAID_TYPE => {
+                                match serde_json::from_value::<raid::RaidEvent>(event) {
+                                    Ok(parsed) => {
+                                        if let Some(raid) = raid::to_raid(parsed) {
+                                            tracing::debug!(
+                                                from = raid.from_login.as_str(),
+                                                to = raid.to_login.as_str(),
+                                                "a channel raided another"
+                                            );
+                                            let _ = events.send(ChatEvent::Raided(Box::new(raid)));
+                                        }
+                                    }
+                                    Err(error) => {
+                                        tracing::warn!(%error, "skipping an unreadable raid");
                                     }
                                 }
                             }

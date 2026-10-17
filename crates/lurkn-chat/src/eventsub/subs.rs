@@ -20,6 +20,14 @@ pub const CHAT_SETTINGS_TYPE: &str = "channel.chat_settings.update";
 /// `channel.hype_train.*`) all require the broadcaster's own token, while this
 /// one rides the `user:read:chat` scope chat already has.
 pub const CHAT_NOTIFICATION_TYPE: &str = "channel.chat.notification";
+/// The channel sending its viewers to another one, so Lurkn can go along.
+///
+/// Public, like a channel's live state: no scope, and a condition that names
+/// the raiding channel and nothing else — Twitch has no `user_id` here and
+/// refuses a `to_broadcaster_user_id` beside it. Unlike the chat types it
+/// costs 1 against the socket's `max_total_cost` of 10, because the channel
+/// has not authorised Lurkn; one per joined channel stays far inside that.
+pub const CHANNEL_RAID_TYPE: &str = "channel.raid";
 pub const SUBSCRIPTION_VERSION: &str = "1";
 
 /// Moderation and room state. Each improves chat but none is required to read
@@ -30,10 +38,11 @@ pub const OPTIONAL_SUBSCRIPTIONS: &[&str] = &[
     CHAT_DELETE_TYPE,
     CHAT_SETTINGS_TYPE,
     CHAT_NOTIFICATION_TYPE,
+    CHANNEL_RAID_TYPE,
 ];
 
-/// Every subscription a joined channel asks for, all version 1 and all satisfied
-/// by the `user:read:chat` scope.
+/// Every subscription a joined channel asks for, all version 1 and all
+/// satisfied by the `user:read:chat` scope — the raid by no scope at all.
 pub const CHANNEL_SUBSCRIPTIONS: &[&str] = &[
     CHAT_MESSAGE_TYPE,
     CHAT_CLEAR_TYPE,
@@ -41,6 +50,7 @@ pub const CHANNEL_SUBSCRIPTIONS: &[&str] = &[
     CHAT_DELETE_TYPE,
     CHAT_SETTINGS_TYPE,
     CHAT_NOTIFICATION_TYPE,
+    CHANNEL_RAID_TYPE,
 ];
 
 /// Whether losing this subscription costs the user chat itself.
@@ -129,6 +139,25 @@ pub fn whisper_body(user_id: &str, session_id: &str) -> serde_json::Value {
         "condition": { "user_id": user_id },
         "transport": { "method": "websocket", "session_id": session_id },
     })
+}
+
+/// The body for one of a joined channel's subscriptions: the raid's condition
+/// is its own, every other type takes [`create_body`]'s.
+pub fn channel_body(
+    subscription_type: &str,
+    broadcaster_id: &str,
+    user_id: &str,
+    session_id: &str,
+) -> serde_json::Value {
+    if subscription_type == CHANNEL_RAID_TYPE {
+        return serde_json::json!({
+            "type": CHANNEL_RAID_TYPE,
+            "version": SUBSCRIPTION_VERSION,
+            "condition": { "from_broadcaster_user_id": broadcaster_id },
+            "transport": { "method": "websocket", "session_id": session_id },
+        });
+    }
+    create_body(subscription_type, broadcaster_id, user_id, session_id)
 }
 
 /// The body for `POST helix/eventsub/subscriptions`.
@@ -297,6 +326,32 @@ mod tests {
         assert_eq!(body["transport"]["session_id"], "SESSION");
     }
 
+    /// A raid is followed from the raiding side, and Twitch takes exactly one
+    /// of `from_` and `to_broadcaster_user_id`, with no user.
+    #[test]
+    fn the_raid_condition_names_only_the_raiding_channel() {
+        let body = channel_body(CHANNEL_RAID_TYPE, "11111", "22222", "S");
+        assert_eq!(body["type"], "channel.raid");
+        assert_eq!(body["version"], "1");
+        assert_eq!(body["condition"]["from_broadcaster_user_id"], "11111");
+        let condition = body["condition"].as_object().expect("a condition");
+        assert_eq!(condition.len(), 1, "{condition:?}");
+        assert_eq!(body["transport"]["session_id"], "S");
+    }
+
+    #[test]
+    fn every_other_channel_type_keeps_the_chat_condition() {
+        for name in CHANNEL_SUBSCRIPTIONS {
+            if *name == CHANNEL_RAID_TYPE {
+                continue;
+            }
+            assert_eq!(
+                channel_body(name, "11111", "22222", "S"),
+                create_body(name, "11111", "22222", "S")
+            );
+        }
+    }
+
     /// The `user_id` condition must be the authorising user — that is what makes
     /// the subscription cost 0 and keeps us clear of the max_total_cost ceiling.
     #[test]
@@ -308,7 +363,7 @@ mod tests {
         );
     }
 
-    /// Five subscriptions per channel against a 300-per-socket ceiling.
+    /// A handful of subscriptions per channel against a 300-per-socket ceiling.
     #[test]
     fn the_per_channel_cost_stays_well_inside_the_socket_limit() {
         assert!(CHANNEL_SUBSCRIPTIONS.len() * 10 < crate::MAX_SUBSCRIPTIONS_PER_SOCKET);
